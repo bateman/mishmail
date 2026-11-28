@@ -7,6 +7,13 @@ minor versions may still change behavior.
 
 ## [Unreleased]
 
+- **Print a message, and the message menu in Gmail's groups.** The "⋮"
+  menu of an open message is grouped like Gmail's, with Gmail's wording
+  ("Reply all", "Delete", "Mark as unread"). The new "Print" prints that
+  message (header and body) through the macOS print panel, with the
+  subject as the document name; blocked remote images stay blocked. The
+  app now has the sandbox print entitlement. (#129)
+
 - **CI: UI tests use fewer macOS runner minutes.** UI-test waits return at
   once when the element is already there, UI jobs restore the unit-test
   job's build cache (read-only), and the suite runs in two balanced shards
