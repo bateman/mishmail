@@ -19,7 +19,7 @@ DreaMailSmokeTests 33
 GoToMailboxUITests 29
 LabelOrganizerOrderUITests 60
 LabelPickerUITests 61
-ListSearchFieldUITests 129  # estimate: 113 s measured for 7 tests, plus one test added since (#126)
+ListSearchFieldUITests 165  # estimate: 113 s measured for 7 tests, plus one added in #126 and two in this change
 MessageHeaderActionsUITests 91
 MoveToInboxUITests 53
 OpenPGPSettingsUITests 9
