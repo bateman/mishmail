@@ -31,9 +31,12 @@ enum ListHeaderLayout {
                                max: fieldMaxWidth, hidden: false)
         }
         let room = Swift.max(0, columnMaxX - fieldMinX - columnTrailingInset)
-        let ideal = Swift.min(fieldIdealWidth, room)
-        return FieldWidths(min: Swift.min(fieldMinWidth, ideal), ideal: ideal,
-                           max: Swift.min(fieldMaxWidth, room),
-                           hidden: room < fieldMinWidth)
+        // Hidden takes no width at all: the box's own content is wider than
+        // a few points (CI: 33 pt at 20 pt of room, across the divider).
+        guard room >= fieldMinWidth else {
+            return FieldWidths(min: 0, ideal: 0, max: 0, hidden: true)
+        }
+        return FieldWidths(min: fieldMinWidth, ideal: Swift.min(fieldIdealWidth, room),
+                           max: Swift.min(fieldMaxWidth, room), hidden: false)
     }
 }

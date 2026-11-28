@@ -25,7 +25,14 @@ import AppKit
 /// While a conversation fills the window (full-window style, centre peek)
 /// the field is disabled: it must not take focus behind the peek's card
 /// (`/` leaves the conversation first).
-struct ListSearchToolbar: ViewModifier {
+///
+/// `trailingButtons` (the window's pane toggle and focus button, with the
+/// list only): `.automatic` items of this column's toolbar go to the
+/// window's trailing end when the list is the only column (where the field
+/// itself went as `.automatic`), while the same buttons declared on the
+/// window's root toolbar sat between the title and the field.
+struct ListSearchToolbar<TrailingButtons: View>: ViewModifier {
+    var trailingButtons: TrailingButtons? = nil
     @Environment(MailStore.self) private var store
     /// Window x of the field's left edge and of the list column's right edge.
     @State private var fieldMinX: CGFloat?
@@ -66,8 +73,12 @@ struct ListSearchToolbar: ViewModifier {
                                 if store.selectedThreadId == nil { store.moveSelection(1) }
                             })
                         .frame(minWidth: widths.min, idealWidth: widths.ideal, maxWidth: widths.max)
-                        .background(HorizontalEdgeReader(edge: .leading) { fieldMinX = $0 }
-                            .accessibilityHidden(true))
+                        // Kept while hidden: a zero-width item may sit elsewhere,
+                        // and the field must come back when the column widens.
+                        .background(HorizontalEdgeReader(edge: .leading) { x in
+                            if !widths.hidden { fieldMinX = x }
+                        }
+                        .accessibilityHidden(true))
                         .layoutPriority(1)
                         // No room left of the column's edge: hidden, not across
                         // it, and disabled so `/` cannot focus an invisible field.
@@ -86,6 +97,9 @@ struct ListSearchToolbar: ViewModifier {
                     }
                 }
                 .pmHideSharedBackground()
+                if let trailingButtons {
+                    ToolbarItemGroup(placement: .automatic) { trailingButtons }
+                }
             }
             // Command-K-style panel, floated over the top of the list column
             // under the field, at the column's leading edge (the field's

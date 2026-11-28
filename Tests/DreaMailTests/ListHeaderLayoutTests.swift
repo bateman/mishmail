@@ -35,16 +35,15 @@ final class ListHeaderFieldWidthTests: XCTestCase {
         XCTAssertFalse(w.hidden)
     }
 
-    /// Below the minimum the field is hidden and takes no more than the room.
-    func testBelowTheMinimumTheFieldIsHiddenAndNeverCrosses() {
+    /// Below the minimum the field is hidden and takes no width.
+    func testBelowTheMinimumTheFieldIsHiddenAndTakesNoWidth() {
         let w = L.fieldWidths(fieldMinX: 300, columnMaxX: 400)
-        XCTAssertTrue(w.hidden)
-        XCTAssertEqual(w.ideal, 92)
-        XCTAssertLessThanOrEqual(w.min, w.ideal)
-        XCTAssertEqual(w.max, 92)
-        let none = L.fieldWidths(fieldMinX: 500, columnMaxX: 400)
-        XCTAssertTrue(none.hidden)
-        XCTAssertEqual(none.ideal, 0)
-        XCTAssertEqual(none.max, 0)
+        XCTAssertEqual(w, .init(min: 0, ideal: 0, max: 0, hidden: true))
+        XCTAssertEqual(L.fieldWidths(fieldMinX: 500, columnMaxX: 400),
+                       .init(min: 0, ideal: 0, max: 0, hidden: true))
+        // Exactly the minimum: shown at the minimum.
+        let edge = L.fieldWidths(fieldMinX: 300, columnMaxX: 300 + L.fieldMinWidth + L.columnTrailingInset)
+        XCTAssertEqual(edge, .init(min: L.fieldMinWidth, ideal: L.fieldMinWidth,
+                                   max: L.fieldMinWidth, hidden: false))
     }
 }

@@ -361,52 +361,59 @@ struct ContentView: View {
             store.autoSelectTopThread()
         }
         .toolbar {
-            // List only (no reading-pane column): `.automatic` put these
-            // between the view's title and the search field (`.principal`,
-            // editor role), pushing the field right. `.primaryAction` sends
-            // them to the window's trailing end. With a reading pane they
-            // already sit at the trailing end of its column.
-            ToolbarItemGroup(placement: layoutMode == .list ? .primaryAction : .automatic) {
-                // Full-window style has no reading pane to toggle.
-                if !fullWindowThreads {
-                    Button {
-                        readingPaneHidden.toggle()
-                    } label: {
-                        Label(readingPaneHidden ? "Show Reading Pane" : "Hide Reading Pane",
-                              systemImage: "sidebar.trailing")
-                    }
-                    .keyboardShortcut("0", modifiers: [.command, .option])
-                    .help(readingPaneHidden ? "Show the reading pane (⌥⌘0)"
-                                            : "Hide the reading pane (⌥⌘0)")
-                }
-                Button {
-                    guard store.selectedThreadId != nil else { return }
-                    store.threadFocusMode.toggle()
-                    if store.threadFocusMode, !fullWindowThreads {
-                        readingPaneHidden = false
-                        store.readingPaneHiddenForCompose = false
-                    }
-                } label: {
-                    Label(store.threadFocusMode ? "Exit Focus" : "Focus Conversation",
-                          systemImage: store.threadFocusMode
-                            ? "arrow.down.right.and.arrow.up.left"
-                            : "arrow.up.left.and.arrow.down.right")
-                }
-                .disabled(!focusFacts.hasSelection)
-                .help(store.threadFocusMode
-                      ? "Exit full-app conversation (esc or ⌘↩)"
-                      : "Open conversation full-app (⌘↩)")
-                // No button, so no ⌥⌘M, in a build without AI features.
-                if AIFeatures.isEnabled {
-                    Button {
-                        store.showAskAI.toggle()
-                    } label: {
-                        Label("Ask AI", systemImage: "sparkles")
-                    }
-                    .keyboardShortcut("m", modifiers: [.command, .option])
-                    .help("Ask AI (⌥⌘M)")
-                }
+            // List only (no reading-pane column): the list column's toolbar
+            // shows them instead, after the search field (`paneButtons`).
+            if layoutMode != .list {
+                ToolbarItemGroup { paneButtons }
             }
+        }
+    }
+
+    /// The window's pane toggle, focus button and Ask AI. With a reading pane
+    /// they sit at the trailing end of its column. With the list only, as
+    /// root items they came between the view's title and the search field,
+    /// pushing the field right: there the list column's toolbar shows them
+    /// after the field, at the window's trailing end (`ListSearchToolbar`).
+    @ViewBuilder
+    private var paneButtons: some View {
+        // Full-window style has no reading pane to toggle.
+        if !fullWindowThreads {
+            Button {
+                readingPaneHidden.toggle()
+            } label: {
+                Label(readingPaneHidden ? "Show Reading Pane" : "Hide Reading Pane",
+                      systemImage: "sidebar.trailing")
+            }
+            .keyboardShortcut("0", modifiers: [.command, .option])
+            .help(readingPaneHidden ? "Show the reading pane (⌥⌘0)"
+                                    : "Hide the reading pane (⌥⌘0)")
+        }
+        Button {
+            guard store.selectedThreadId != nil else { return }
+            store.threadFocusMode.toggle()
+            if store.threadFocusMode, !fullWindowThreads {
+                readingPaneHidden = false
+                store.readingPaneHiddenForCompose = false
+            }
+        } label: {
+            Label(store.threadFocusMode ? "Exit Focus" : "Focus Conversation",
+                  systemImage: store.threadFocusMode
+                    ? "arrow.down.right.and.arrow.up.left"
+                    : "arrow.up.left.and.arrow.down.right")
+        }
+        .disabled(!focusFacts.hasSelection)
+        .help(store.threadFocusMode
+              ? "Exit full-app conversation (esc or ⌘↩)"
+              : "Open conversation full-app (⌘↩)")
+        // No button, so no ⌥⌘M, in a build without AI features.
+        if AIFeatures.isEnabled {
+            Button {
+                store.showAskAI.toggle()
+            } label: {
+                Label("Ask AI", systemImage: "sparkles")
+            }
+            .keyboardShortcut("m", modifiers: [.command, .option])
+            .help("Ask AI (⌥⌘M)")
         }
     }
 
@@ -947,7 +954,8 @@ struct ContentView: View {
     }
 
     private var listColumnWithSearch: some View {
-        listColumn.modifier(ListSearchToolbar())
+        listColumn.modifier(ListSearchToolbar(
+            trailingButtons: layoutMode == .list ? paneButtons : nil))
     }
 
     @ViewBuilder
