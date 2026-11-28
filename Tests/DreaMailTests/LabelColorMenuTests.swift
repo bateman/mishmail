@@ -1,16 +1,34 @@
 import XCTest
 
-/// Gmail web's "Label color" menu (the 24 preset pairs and their check
+/// Gmail web's "Label color" menu (the 30 preset pairs and their check
 /// mark) and its "Add custom color" dialog's choice.
 final class LabelColorMenuTests: XCTestCase {
     // MARK: - Preset table
 
-    func testTableHas24DistinctPairsInFourRowsOfSix() {
-        XCTAssertEqual(GmailLabelColorMenu.table.count, 24)
-        XCTAssertEqual(GmailLabelColorMenu.presets.count, 24)
+    func testTableHas30DistinctPairsInFiveRowsOfSix() {
+        XCTAssertEqual(GmailLabelColorMenu.table.count, 30)
+        XCTAssertEqual(GmailLabelColorMenu.presets.count, 30)
         XCTAssertEqual(GmailLabelColorMenu.columns, 6)
-        XCTAssertEqual(GmailLabelColorMenu.presets.count / GmailLabelColorMenu.columns, 4)
-        XCTAssertEqual(Set(GmailLabelColorMenu.presets).count, 24, "no duplicate pair")
+        XCTAssertEqual(GmailLabelColorMenu.presets.count % GmailLabelColorMenu.columns, 0)
+        XCTAssertEqual(GmailLabelColorMenu.presets.count / GmailLabelColorMenu.columns, 5)
+        XCTAssertEqual(Set(GmailLabelColorMenu.presets).count, 30, "no duplicate pair")
+    }
+
+    /// The table as measured from Gmail web's menu, pinned row by row.
+    func testTablePinsGmailsMenu() {
+        let rows = stride(from: 0, to: 30, by: 6).map { i in
+            GmailLabelColorMenu.table[i..<i + 6].map { "\($0.0)/\($0.1)" }
+        }
+        XCTAssertEqual(rows[0], ["#e7e7e7/#464646", "#b6cff5/#0d3472", "#98d7e4/#0d3b44",
+                                 "#e3d7ff/#3d188e", "#fbd3e0/#711a36", "#f2b2a8/#8a1c0a"])
+        XCTAssertEqual(rows[1], ["#666666/#ffffff", "#285bac/#ffffff", "#2da2bb/#ffffff",
+                                 "#8e63ce/#ffffff", "#994a64/#ffffff", "#cc3a21/#ffffff"])
+        XCTAssertEqual(rows[2], ["#ffc8af/#7a2e0b", "#ffdeb5/#7a4706", "#fbe983/#594c05",
+                                 "#fdedc1/#684e07", "#b3efd3/#0b4f30", "#a2dcc1/#04502e"])
+        XCTAssertEqual(rows[3], ["#ff7537/#594c05", "#ffbc6b/#594c05", "#ebdbde/#662e37",
+                                 "#cca6ac/#662e37", "#68dfa9/#0b4f30", "#44b984/#ffffff"])
+        XCTAssertEqual(rows[4], ["#e66550/#ffffff", "#000000/#ffffff", "#cca6ac/#ffffff",
+                                 "#4a86e8/#ffffff", "#1c4587/#ffffff", "#ff7537/#ffffff"])
     }
 
     func testEveryPresetValueIsInTheAPIPalette() {
@@ -24,26 +42,13 @@ final class LabelColorMenuTests: XCTestCase {
         XCTAssertEqual(GmailLabelColorMenu.presets.map(\.text), GmailLabelColorMenu.table.map(\.1))
     }
 
-    /// Twelve hues, each light-on-dark and dark-on-light: rows 1–2 are the
-    /// light backgrounds, rows 3–4 the same pairs reversed.
-    func testLastTwoRowsAreTheFirstTwoReversed() {
-        let p = GmailLabelColorMenu.presets
-        for i in 0..<12 {
-            XCTAssertEqual(p[i].background, p[i + 12].text, "\(i)")
-            XCTAssertEqual(p[i].text, p[i + 12].background, "\(i)")
-            let light = LabelRGB(hexString: p[i].background)!
-            let dark = LabelRGB(hexString: p[i].text)!
-            XCTAssertGreaterThan(light.contrast(with: .black), dark.contrast(with: .black),
-                                 "row 1–2 background is the light one: \(p[i].background)")
-        }
-    }
-
-    func testEveryPresetIsReadable() {
+    /// Gmail's own pairs are not all WCAG AA (white on #cca6ac is about
+    /// 2.2:1), so this only checks that the text never fades into the fill.
+    func testEveryPresetTextStandsOut() {
         for p in GmailLabelColorMenu.presets {
             let fill = LabelRGB(hexString: p.background)!
             let text = LabelRGB(hexString: p.text)!
-            XCTAssertGreaterThanOrEqual(text.contrast(with: fill), LabelPillStyle.minimumTextContrast,
-                                        "\(p.background)/\(p.text)")
+            XCTAssertGreaterThanOrEqual(text.contrast(with: fill), 2, "\(p.background)/\(p.text)")
         }
     }
 
@@ -60,9 +65,13 @@ final class LabelColorMenuTests: XCTestCase {
     func testCheckedNeedsBothColors() {
         // Right background, other text: not the preset.
         XCTAssertNil(GmailLabelColorMenu.checked(LabelColors(background: "#b6cff5", text: "#000000")))
-        // The reversed pair is the other preset, not this one.
-        XCTAssertEqual(GmailLabelColorMenu.checked(LabelColors(background: "#0d3472", text: "#b6cff5")),
-                       GmailLabelColor(background: "#0d3472", text: "#b6cff5"))
+        // The reversed pair is not a preset.
+        XCTAssertNil(GmailLabelColorMenu.checked(LabelColors(background: "#0d3472", text: "#b6cff5")))
+        // Same background, two presets: each is checked by its own text.
+        XCTAssertEqual(GmailLabelColorMenu.checked(LabelColors(background: "#cca6ac", text: "#662e37")),
+                       GmailLabelColor(background: "#cca6ac", text: "#662e37"))
+        XCTAssertEqual(GmailLabelColorMenu.checked(LabelColors(background: "#cca6ac", text: "#ffffff")),
+                       GmailLabelColor(background: "#cca6ac", text: "#ffffff"))
         XCTAssertNil(GmailLabelColorMenu.checked(LabelColors(background: "#b6cff5", text: nil)))
     }
 

@@ -60,14 +60,16 @@ enum GmailLabelPalette {
     }
 }
 
-/// Gmail web's "Label color" menu: 24 preset pairs in 4 rows of 6, each
+/// Gmail web's "Label color" menu: 30 preset pairs in 5 rows of 6, each
 /// a background and a text color.
 ///
-/// Origin: the swatches of Gmail web's label color menu. Their values are
-/// the twelve two-tone pairs the users.labels reference lists at the end of
-/// the palette (`#464646`/`#e7e7e7` to `#04502e`/`#a2dcc1`, side by side),
-/// each used both ways: the first two rows a light background with dark
-/// text, the last two the same hues dark with light text. All are in
+/// Origin: measured from a screenshot of Gmail web's label color menu
+/// (November 2026): sampled pixels snapped to the nearest value of the API
+/// palette, then checked against Gmail's known legacy pairs where one
+/// exists (#f2b2a8/#8a1c0a, #b3efd3/#0b4f30, #ebdbde/#662e37). The third
+/// swatch of row 2 is taken as the palette's teal, #2da2bb. Row 4's text
+/// colors were uncertain in the screenshot: dark on the light swatches,
+/// white on the last, as it reads. All values are in
 /// `GmailLabelPalette.allowed`, so `labels.patch` accepts them.
 enum GmailLabelColorMenu {
     static let columns = 6
@@ -76,12 +78,14 @@ enum GmailLabelColorMenu {
     static let table: [(String, String)] = [
         ("#e7e7e7", "#464646"), ("#b6cff5", "#0d3472"), ("#98d7e4", "#0d3b44"),
         ("#e3d7ff", "#3d188e"), ("#fbd3e0", "#711a36"), ("#f2b2a8", "#8a1c0a"),
+        ("#666666", "#ffffff"), ("#285bac", "#ffffff"), ("#2da2bb", "#ffffff"),
+        ("#8e63ce", "#ffffff"), ("#994a64", "#ffffff"), ("#cc3a21", "#ffffff"),
         ("#ffc8af", "#7a2e0b"), ("#ffdeb5", "#7a4706"), ("#fbe983", "#594c05"),
         ("#fdedc1", "#684e07"), ("#b3efd3", "#0b4f30"), ("#a2dcc1", "#04502e"),
-        ("#464646", "#e7e7e7"), ("#0d3472", "#b6cff5"), ("#0d3b44", "#98d7e4"),
-        ("#3d188e", "#e3d7ff"), ("#711a36", "#fbd3e0"), ("#8a1c0a", "#f2b2a8"),
-        ("#7a2e0b", "#ffc8af"), ("#7a4706", "#ffdeb5"), ("#594c05", "#fbe983"),
-        ("#684e07", "#fdedc1"), ("#0b4f30", "#b3efd3"), ("#04502e", "#a2dcc1"),
+        ("#ff7537", "#594c05"), ("#ffbc6b", "#594c05"), ("#ebdbde", "#662e37"),
+        ("#cca6ac", "#662e37"), ("#68dfa9", "#0b4f30"), ("#44b984", "#ffffff"),
+        ("#e66550", "#ffffff"), ("#000000", "#ffffff"), ("#cca6ac", "#ffffff"),
+        ("#4a86e8", "#ffffff"), ("#1c4587", "#ffffff"), ("#ff7537", "#ffffff"),
     ]
 
     static let presets: [GmailLabelColor] = table.map { GmailLabelColor(background: $0.0, text: $0.1)! }

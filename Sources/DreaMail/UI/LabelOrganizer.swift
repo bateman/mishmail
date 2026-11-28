@@ -163,7 +163,7 @@ struct LabelColorChooser: View {
     }
 }
 
-/// Gmail's "Label color" menu: the 24 preset pairs (`GmailLabelColorMenu`),
+/// Gmail's "Label color" menu: the 30 preset pairs (`GmailLabelColorMenu`),
 /// each a circle in the background color with an "a" in the text color,
 /// the current one checked; then "Add custom color" and "Remove color".
 struct LabelColorPalette: View {

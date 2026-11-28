@@ -175,8 +175,8 @@ final class SidebarLabelMenuUITests: XCTestCase {
         openColorSheet(vendors, in: app)
         let swatch = element("labelColor.preset.#e7e7e7.#464646", in: app)
         XCTAssertTrue(swatch.appears(timeout: 5), "the sheet shows Gmail's preset pairs")
-        // Gmail's menu: 24 preset pairs, "Add custom color", "Remove color".
-        XCTAssertEqual(presets(in: app).count, 24, "24 preset pairs")
+        // Gmail's menu: 30 preset pairs, "Add custom color", "Remove color".
+        XCTAssertEqual(presets(in: app).count, 30, "30 preset pairs")
         XCTAssertTrue(element("labelColor.addCustom", in: app).exists, "Add custom color is there")
         XCTAssertTrue(element("labelColor.remove", in: app).exists, "Remove color is there")
         XCTAssertEqual(app.buttons.matching(NSPredicate(
@@ -297,7 +297,7 @@ final class SidebarLabelMenuUITests: XCTestCase {
         let remove = element("labelColor.remove", in: app)
         XCTAssertTrue(remove.appears(timeout: 5), "the sheet has Remove color")
         let swatches = presets(in: app)
-        XCTAssertEqual(swatches.count, 24, "the presets are there")
+        XCTAssertEqual(swatches.count, 30, "the presets are there")
         for i in 0..<swatches.count {
             XCTAssertFalse(swatches.element(boundBy: i).isSelected, "no preset is checked for an off-grid color")
         }
