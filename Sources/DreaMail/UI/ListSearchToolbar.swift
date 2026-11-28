@@ -14,16 +14,34 @@ import AppKit
 /// list was not mounted, when the field attaches to its window
 /// (`store.searchFocusPending`).
 ///
-/// The item is flexible (`ListHeaderLayout`: ideal 260 pt, 140-380 pt).
-/// `ListSearchFieldUITests` measures its width and the toolbar's items at the
-/// window's minimum size. While a conversation fills the window (full-window
-/// style, centre peek) the field is disabled: it must not take focus behind
-/// the peek's card (`/` leaves the conversation first).
-struct ListSearchToolbar: ViewModifier {
+/// The item is flexible (`ListHeaderLayout`: ideal 260 pt, 140-380 pt), and
+/// bounded by the list column: a `.principal` item is sized to its ideal
+/// width whatever the column's width, so the ideal is the room between the
+/// field's left edge and the column's right edge (both measured in AppKit,
+/// `HorizontalEdgeReader`). The field shrinks with the column and never
+/// crosses into the reading pane; with less room than its minimum it is
+/// hidden. `ListSearchFieldUITests` measures its width and the toolbar's
+/// items at the window's minimum size and against the list/pane divider.
+/// While a conversation fills the window (full-window style, centre peek)
+/// the field is disabled: it must not take focus behind the peek's card
+/// (`/` leaves the conversation first).
+///
+/// `trailingButtons` (the window's pane toggle and focus button, with the
+/// list only): `.automatic` items of this column's toolbar go to the
+/// window's trailing end when the list is the only column (where the field
+/// itself went as `.automatic`), while the same buttons declared on the
+/// window's root toolbar sat between the title and the field.
+struct ListSearchToolbar<TrailingButtons: View>: ViewModifier {
+    var trailingButtons: TrailingButtons? = nil
     @Environment(MailStore.self) private var store
+    /// Window x of the field's left edge and of the list column's right edge.
+    @State private var fieldMinX: CGFloat?
+    @State private var columnMaxX: CGFloat?
 
     func body(content: Content) -> some View {
+        let widths = ListHeaderLayout.fieldWidths(fieldMinX: fieldMinX, columnMaxX: columnMaxX)
         content
+            .background(HorizontalEdgeReader { columnMaxX = $0 }.accessibilityHidden(true))
             // `.principal` + `.editor` role: the item sits in the column's title
             // region, after the title, above the list column. `.navigation`
             // pins to the window's leading edge on macOS 26 (over the sidebar),
@@ -35,41 +53,60 @@ struct ListSearchToolbar: ViewModifier {
                 // box, not a box inside the system capsule.
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        ToolbarSearchField(
-                            text: Bindable(store).searchText,
-                            focusToken: store.searchFocusToken,
-                            pendingFocus: { store.searchFocusPending && store.searchFocusStillWanted },
-                            onFocusChange: { focused in
-                                // Drive the results panel from the field's focus. Blur
-                                // is deferred (see noteSearchFocused) so a click on a
-                                // result row can land before the panel is torn down.
-                                if focused { store.searchFocusPending = false }
-                                store.noteSearchFocused(focused)
-                            },
-                            onSubmit: {
-                                // Fallback path — with the dropdown open, Enter is handled
-                                // by the key monitor and routed to the panel instead.
-                                store.commitSearch(store.searchText)
-                                store.dismissSearchPanel()
-                                NSApp.keyWindow?.makeFirstResponder(nil)
-                                if store.selectedThreadId == nil { store.moveSelection(1) }
-                            })
-                        .frame(minWidth: ListHeaderLayout.fieldMinWidth,
-                               idealWidth: ListHeaderLayout.fieldIdealWidth,
-                               maxWidth: ListHeaderLayout.fieldMaxWidth)
-                        .layoutPriority(1)
-                        .disabled(store.threadFocusMode)
-                        .help("Search — from: to: subject: label: has:attachment is:unread is:starred after: before:")
-                        // One element for the whole field box (its children keep their own).
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("listSearchBox")
-                        // Unmounted while focused (layout switch): end the
-                        // search-active state, or the key monitor keeps swallowing
-                        // arrows and Enter.
-                        .onDisappear { store.dismissSearchPanel() }
+                        // No room left of the column's edge (below the minimum):
+                        // no field at all, not one across the divider. Hiding
+                        // it in place was not enough: the box kept its content
+                        // width (CI: 33 pt) and stayed exposed.
+                        if widths.hidden {
+                            Color.clear.frame(width: 0, height: 0)
+                        } else {
+                            ToolbarSearchField(
+                                text: Bindable(store).searchText,
+                                focusToken: store.searchFocusToken,
+                                pendingFocus: { store.searchFocusPending && store.searchFocusStillWanted },
+                                onFocusChange: { focused in
+                                    // Drive the results panel from the field's focus. Blur
+                                    // is deferred (see noteSearchFocused) so a click on a
+                                    // result row can land before the panel is torn down.
+                                    if focused { store.searchFocusPending = false }
+                                    store.noteSearchFocused(focused)
+                                },
+                                onSubmit: {
+                                    // Fallback path — with the dropdown open, Enter is handled
+                                    // by the key monitor and routed to the panel instead.
+                                    store.commitSearch(store.searchText)
+                                    store.dismissSearchPanel()
+                                    NSApp.keyWindow?.makeFirstResponder(nil)
+                                    if store.selectedThreadId == nil { store.moveSelection(1) }
+                                })
+                            .frame(minWidth: widths.min, idealWidth: widths.ideal, maxWidth: widths.max)
+                            // Measured only while shown: the last left edge is kept
+                            // while hidden, so the field comes back when the
+                            // column widens.
+                            .background(HorizontalEdgeReader(edge: .leading) { fieldMinX = $0 }
+                                .accessibilityHidden(true))
+                            .layoutPriority(1)
+                            .disabled(store.threadFocusMode)
+                            .help("Search — from: to: subject: label: has:attachment is:unread is:starred after: before:")
+                            // One element for the whole field box (its children keep their own).
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("listSearchBox")
+                            // Unmounted while focused (layout switch): end the
+                            // search-active state, or the key monitor keeps swallowing
+                            // arrows and Enter.
+                            .onDisappear { store.dismissSearchPanel() }
+                        }
                     }
                 }
                 .pmHideSharedBackground()
+                if let trailingButtons {
+                    // Shared glass hidden too: with it, and the sidebar
+                    // collapsed, macOS 26 drew the column's top edge over the
+                    // whole title-bar row and the rail's band was gone
+                    // (TopBandSeamUITests, CI run 46166175036).
+                    ToolbarItemGroup(placement: .automatic) { trailingButtons }
+                        .pmHideSharedBackground()
+                }
             }
             // Command-K-style panel, floated over the top of the list column
             // under the field, at the column's leading edge (the field's
