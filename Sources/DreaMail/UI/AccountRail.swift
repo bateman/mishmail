@@ -259,7 +259,7 @@ struct HorizontalEdgeReader: NSViewRepresentable {
 
     func makeNSView(context: Context) -> EdgeView {
         let view = EdgeView()
-        view.leading = edge == .leading
+        view.edge = edge
         view.onChange = onChange
         return view
     }
@@ -271,7 +271,7 @@ struct HorizontalEdgeReader: NSViewRepresentable {
 
     final class EdgeView: NSView {
         var onChange: ((CGFloat) -> Void)?
-        var leading = false
+        var edge: HorizontalEdge = .trailing
         private var last: CGFloat?
 
         /// Frame observers on the ancestors: when one moves without resizing
@@ -316,10 +316,10 @@ struct HorizontalEdgeReader: NSViewRepresentable {
         func report() {
             guard window != nil else { return }
             let frame = convert(bounds, to: nil)
-            let edge = (leading ? frame.minX : frame.maxX).rounded()
-            guard edge != last else { return }
-            last = edge
-            DispatchQueue.main.async { [weak self] in self?.onChange?(edge) }
+            let x = (edge == .leading ? frame.minX : frame.maxX).rounded()
+            guard x != last else { return }
+            last = x
+            DispatchQueue.main.async { [weak self] in self?.onChange?(x) }
         }
     }
 }

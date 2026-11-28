@@ -315,24 +315,22 @@ final class ListSearchFieldUITests: XCTestCase {
         }
         let title = titleElement(app, "Inbox")
         var previousWidth = CGFloat.infinity
-        var dividerX = first.frame.midX
-        for step in 0..<3 {
+        var lastX = first.frame.midX
+        var widths = 0
+        // Measured at the starting width, then after each drag to the left,
+        // until the divider stops moving (the list column at its minimum).
+        for step in 0..<10 {
             if step > 0 {
                 guard let divider = listPaneDivider(app, row: row) else { return XCTFail("step \(step): divider gone") }
-                let before = divider.frame.midX
                 let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-                start.press(forDuration: 0.3, thenDragTo: start.withOffset(CGVector(dx: -70, dy: 0)))
-                XCTAssertTrue(waitUntil {
-                    (self.listPaneDivider(app, row: row)?.frame.midX ?? before) < before - 20
-                }, "step \(step): the divider moved left (was \(before))")
+                start.press(forDuration: 0.3, thenDragTo: start.withOffset(CGVector(dx: -80, dy: 0)))
                 // The field follows the column a layout pass later.
-                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+                RunLoop.current.run(until: Date().addingTimeInterval(0.6))
             }
             guard let divider = listPaneDivider(app, row: row) else { return XCTFail("step \(step): divider gone") }
-            if step > 0 {
-                XCTAssertLessThan(divider.frame.midX, dividerX - 20, "step \(step): the list column is narrower")
-            }
-            dividerX = divider.frame.midX
+            if step > 0, divider.frame.midX > lastX - 2 { break }
+            lastX = divider.frame.midX
+            widths += 1
             let f = field.frame
             let room = divider.frame.minX - f.minX
             print("ListSearchField threePanes [\(step)]: window \(app.windows.firstMatch.frame), divider \(divider.frame), row \(row.frame), title \(title.frame), field \(f), room \(room)")
@@ -343,11 +341,19 @@ final class ListSearchFieldUITests: XCTestCase {
             XCTAssertLessThanOrEqual(f.width, previousWidth + 1, "step \(step): a narrower column never widens the field")
             // It takes the room it has, up to its ideal width: it shrinks with
             // the column, not before.
-            XCTAssertGreaterThanOrEqual(f.width, min(ListHeaderMetrics.idealWidth, room - 8) - 3,
+            XCTAssertGreaterThanOrEqual(f.width, min(ListHeaderMetrics.idealWidth, room - ListHeaderMetrics.trailingInset) - 3,
                                         "step \(step): the field uses the room left of the divider (field \(f), room \(room))")
             XCTAssertTrue(field.isHittable, "step \(step): the field is hittable")
             previousWidth = f.width
         }
+        XCTAssertGreaterThanOrEqual(widths, 2, "the divider drag narrowed the list column at least once")
+        // At the column's minimum there is less room than the ideal width, so
+        // the checks above really saw the field shrink.
+        guard let divider = listPaneDivider(app, row: row) else { return XCTFail("divider gone") }
+        let room = divider.frame.minX - field.frame.minX - ListHeaderMetrics.trailingInset
+        XCTAssertLessThan(room, ListHeaderMetrics.idealWidth,
+                          "the narrowest list column leaves less than the ideal width (room \(room), field \(field.frame), divider \(divider.frame))")
+        XCTAssertLessThan(field.frame.width, ListHeaderMetrics.idealWidth - 1, "the field shrank (\(field.frame))")
     }
 
     /// List only (no reading pane): the pane toggle and the focus button sit
@@ -414,4 +420,5 @@ private enum ListHeaderMetrics {
     static let minWidth: CGFloat = 140
     static let idealWidth: CGFloat = 260
     static let maxWidth: CGFloat = 380
+    static let trailingInset: CGFloat = 8
 }

@@ -69,10 +69,12 @@ struct ListSearchToolbar: ViewModifier {
                         .background(HorizontalEdgeReader(edge: .leading) { fieldMinX = $0 }
                             .accessibilityHidden(true))
                         .layoutPriority(1)
-                        // No room left of the column's edge: hidden, not across it.
+                        // No room left of the column's edge: hidden, not across
+                        // it, and disabled so `/` cannot focus an invisible field.
                         .opacity(widths.hidden ? 0 : 1)
                         .allowsHitTesting(!widths.hidden)
-                        .disabled(store.threadFocusMode)
+                        .accessibilityHidden(widths.hidden)
+                        .disabled(store.threadFocusMode || widths.hidden)
                         .help("Search — from: to: subject: label: has:attachment is:unread is:starred after: before:")
                         // One element for the whole field box (its children keep their own).
                         .accessibilityElement(children: .contain)
