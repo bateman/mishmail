@@ -361,7 +361,12 @@ struct ContentView: View {
             store.autoSelectTopThread()
         }
         .toolbar {
-            ToolbarItemGroup {
+            // List only (no reading-pane column): `.automatic` put these
+            // between the view's title and the search field (`.principal`,
+            // editor role), pushing the field right. `.primaryAction` sends
+            // them to the window's trailing end. With a reading pane they
+            // already sit at the trailing end of its column.
+            ToolbarItemGroup(placement: layoutMode == .list ? .primaryAction : .automatic) {
                 // Full-window style has no reading pane to toggle.
                 if !fullWindowThreads {
                     Button {
@@ -2049,7 +2054,7 @@ struct Sidebar: View {
                     .ignoresSafeArea(.container, edges: .horizontal)
             }
         }
-        .background(TrailingEdgeReader { store.sidebarTrailingEdge = $0 })
+        .background(HorizontalEdgeReader { store.sidebarTrailingEdge = $0 })
         .sheet(item: $newLabel) { request in
             NewLabelSheet(request: request)
         }

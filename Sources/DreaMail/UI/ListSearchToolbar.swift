@@ -14,16 +14,27 @@ import AppKit
 /// list was not mounted, when the field attaches to its window
 /// (`store.searchFocusPending`).
 ///
-/// The item is flexible (`ListHeaderLayout`: ideal 260 pt, 140-380 pt).
-/// `ListSearchFieldUITests` measures its width and the toolbar's items at the
-/// window's minimum size. While a conversation fills the window (full-window
-/// style, centre peek) the field is disabled: it must not take focus behind
-/// the peek's card (`/` leaves the conversation first).
+/// The item is flexible (`ListHeaderLayout`: ideal 260 pt, 140-380 pt), and
+/// bounded by the list column: a `.principal` item is sized to its ideal
+/// width whatever the column's width, so the ideal is the room between the
+/// field's left edge and the column's right edge (both measured in AppKit,
+/// `HorizontalEdgeReader`). The field shrinks with the column and never
+/// crosses into the reading pane; with less room than its minimum it is
+/// hidden. `ListSearchFieldUITests` measures its width and the toolbar's
+/// items at the window's minimum size and against the list/pane divider.
+/// While a conversation fills the window (full-window style, centre peek)
+/// the field is disabled: it must not take focus behind the peek's card
+/// (`/` leaves the conversation first).
 struct ListSearchToolbar: ViewModifier {
     @Environment(MailStore.self) private var store
+    /// Window x of the field's left edge and of the list column's right edge.
+    @State private var fieldMinX: CGFloat?
+    @State private var columnMaxX: CGFloat?
 
     func body(content: Content) -> some View {
+        let widths = ListHeaderLayout.fieldWidths(fieldMinX: fieldMinX, columnMaxX: columnMaxX)
         content
+            .background(HorizontalEdgeReader { columnMaxX = $0 }.accessibilityHidden(true))
             // `.principal` + `.editor` role: the item sits in the column's title
             // region, after the title, above the list column. `.navigation`
             // pins to the window's leading edge on macOS 26 (over the sidebar),
@@ -54,10 +65,13 @@ struct ListSearchToolbar: ViewModifier {
                                 NSApp.keyWindow?.makeFirstResponder(nil)
                                 if store.selectedThreadId == nil { store.moveSelection(1) }
                             })
-                        .frame(minWidth: ListHeaderLayout.fieldMinWidth,
-                               idealWidth: ListHeaderLayout.fieldIdealWidth,
-                               maxWidth: ListHeaderLayout.fieldMaxWidth)
+                        .frame(minWidth: widths.min, idealWidth: widths.ideal, maxWidth: widths.max)
+                        .background(HorizontalEdgeReader(edge: .leading) { fieldMinX = $0 }
+                            .accessibilityHidden(true))
                         .layoutPriority(1)
+                        // No room left of the column's edge: hidden, not across it.
+                        .opacity(widths.hidden ? 0 : 1)
+                        .allowsHitTesting(!widths.hidden)
                         .disabled(store.threadFocusMode)
                         .help("Search — from: to: subject: label: has:attachment is:unread is:starred after: before:")
                         // One element for the whole field box (its children keep their own).

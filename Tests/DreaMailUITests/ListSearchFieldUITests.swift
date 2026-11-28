@@ -7,8 +7,14 @@ import XCTest
 final class ListSearchFieldUITests: XCTestCase {
     /// `paneHidden: nil` passes no `-readingPaneHidden`: a launch argument sits in
     /// the defaults' argument domain and overrides what the toggle writes.
-    private func launch(paneHidden: Bool?, openStyle: String = "readingPane") -> XCUIApplication {
+    /// `threePaneMinWidth` lowers the three-pane threshold (UI tests only):
+    /// the CI screen (1024 pt) is narrower than the real one (1080 pt).
+    private func launch(paneHidden: Bool?, openStyle: String = "readingPane",
+                        threePaneMinWidth: Int? = nil) -> XCUIApplication {
         let app = XCUIApplication()
+        if let threePaneMinWidth {
+            app.launchEnvironment["DREAMAIL_THREE_PANE_MIN_WIDTH"] = String(threePaneMinWidth)
+        }
         app.launchEnvironment["DREAMAIL_DEMO"] = "1"
         app.launchEnvironment["DREAMAIL_UI_TEST"] = "1"
         app.launchEnvironment["DREAMAIL_DEMO_LABELS"] = "small"
@@ -287,6 +293,91 @@ final class ListSearchFieldUITests: XCTestCase {
         }
     }
 
+    /// The list/pane divider: the split view's splitter right of the list rows.
+    private func listPaneDivider(_ app: XCUIApplication, row: XCUIElement) -> XCUIElement? {
+        app.windows.firstMatch.splitters.allElementsBoundByIndex
+            .filter { $0.exists && $0.frame.height > 100 && $0.frame.midX > row.frame.midX }
+            .min { $0.frame.minX < $1.frame.minX }
+    }
+
+    /// Three panes (the reading pane open beside the list): narrowing the
+    /// list column by dragging the list/pane divider shrinks the field, which
+    /// stays left of the divider at every width, never across it.
+    func testFieldStaysInsideTheListColumn_threePanes() {
+        let app = launch(paneHidden: false, threePaneMinWidth: 900)
+        let row = element(app, "threadRow.you@example.com:t3")
+        XCTAssertTrue(row.appears(timeout: 10))
+        let field = element(app, "listSearchBox")
+        XCTAssertTrue(field.appears(timeout: 5))
+        guard let first = listPaneDivider(app, row: row) else {
+            let all = app.windows.firstMatch.splitters.allElementsBoundByIndex.map { "\($0.frame)" }
+            return XCTFail("three panes: no list/pane divider (window \(app.windows.firstMatch.frame), row \(row.frame), splitters \(all))")
+        }
+        let title = titleElement(app, "Inbox")
+        var previousWidth = CGFloat.infinity
+        var dividerX = first.frame.midX
+        for step in 0..<3 {
+            if step > 0 {
+                guard let divider = listPaneDivider(app, row: row) else { return XCTFail("step \(step): divider gone") }
+                let before = divider.frame.midX
+                let start = divider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                start.press(forDuration: 0.3, thenDragTo: start.withOffset(CGVector(dx: -70, dy: 0)))
+                XCTAssertTrue(waitUntil {
+                    (self.listPaneDivider(app, row: row)?.frame.midX ?? before) < before - 20
+                }, "step \(step): the divider moved left (was \(before))")
+                // The field follows the column a layout pass later.
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            }
+            guard let divider = listPaneDivider(app, row: row) else { return XCTFail("step \(step): divider gone") }
+            if step > 0 {
+                XCTAssertLessThan(divider.frame.midX, dividerX - 20, "step \(step): the list column is narrower")
+            }
+            dividerX = divider.frame.midX
+            let f = field.frame
+            let room = divider.frame.minX - f.minX
+            print("ListSearchField threePanes [\(step)]: window \(app.windows.firstMatch.frame), divider \(divider.frame), row \(row.frame), title \(title.frame), field \(f), room \(room)")
+            XCTAssertLessThanOrEqual(f.maxX, divider.frame.minX,
+                                     "step \(step): the field stays left of the list/pane divider (field \(f), divider \(divider.frame))")
+            XCTAssertGreaterThanOrEqual(f.minX, row.frame.minX, "step \(step): not left of the list column")
+            XCTAssertLessThanOrEqual(title.frame.maxX, f.minX, "step \(step): right of the title")
+            XCTAssertLessThanOrEqual(f.width, previousWidth + 1, "step \(step): a narrower column never widens the field")
+            // It takes the room it has, up to its ideal width: it shrinks with
+            // the column, not before.
+            XCTAssertGreaterThanOrEqual(f.width, min(ListHeaderMetrics.idealWidth, room - 8) - 3,
+                                        "step \(step): the field uses the room left of the divider (field \(f), room \(room))")
+            XCTAssertTrue(field.isHittable, "step \(step): the field is hittable")
+            previousWidth = f.width
+        }
+    }
+
+    /// List only (no reading pane): the pane toggle and the focus button sit
+    /// at the window's right end, right of the field, which stays right after
+    /// the title.
+    func testPaneButtonsAtTheRightEnd_listOnly() {
+        let app = launch(paneHidden: true)
+        XCTAssertTrue(element(app, "threadRow.you@example.com:t3").appears(timeout: 10))
+        let box = element(app, "listSearchBox")
+        XCTAssertTrue(box.appears(timeout: 5))
+        let window = app.windows.firstMatch
+        let title = titleElement(app, "Inbox")
+        XCTAssertTrue(title.exists, "the title is shown")
+        let toggle = app.toolbars.buttons.matching(NSPredicate(format: "label ENDSWITH 'Reading Pane'")).firstMatch
+        let focus = app.toolbars.buttons.matching(NSPredicate(format: "label == 'Focus Conversation' OR label == 'Exit Focus'")).firstMatch
+        XCTAssertTrue(toggle.appears(timeout: 5), "the pane toggle")
+        XCTAssertTrue(focus.appears(timeout: 5), "the focus button")
+        print("ListSearchField listOnly buttons: window \(window.frame), title \(title.frame), field \(box.frame), toggle \(toggle.frame), focus \(focus.frame)")
+        let gap = box.frame.minX - title.frame.maxX
+        XCTAssertGreaterThanOrEqual(gap, 0, "field right of the title (title \(title.frame), field \(box.frame))")
+        XCTAssertLessThanOrEqual(gap, 100, "field right after the title (title \(title.frame), field \(box.frame))")
+        for (name, button) in [("pane toggle", toggle), ("focus button", focus)] {
+            XCTAssertGreaterThan(button.frame.minX, box.frame.maxX,
+                                 "\(name) right of the field (\(button.frame) vs field \(box.frame))")
+            XCTAssertGreaterThanOrEqual(button.frame.maxX, window.frame.maxX - 160,
+                                        "\(name) at the window's right end (\(button.frame), window \(window.frame))")
+            XCTAssertTrue(button.isHittable, "\(name) hittable")
+        }
+    }
+
     func testNoDoubleChevronAndPaneToggleStillWorks() {
         let app = launch(paneHidden: nil)
         let t3 = element(app, "threadRow.you@example.com:t3")
@@ -321,5 +412,6 @@ final class ListSearchFieldUITests: XCTestCase {
 /// The field's sizes, as the test sees them (kept equal to `ListHeaderLayout`).
 private enum ListHeaderMetrics {
     static let minWidth: CGFloat = 140
+    static let idealWidth: CGFloat = 260
     static let maxWidth: CGFloat = 380
 }

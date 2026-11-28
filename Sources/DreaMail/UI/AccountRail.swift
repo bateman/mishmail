@@ -249,14 +249,17 @@ struct AccountRailTopBand: View {
     }
 }
 
-/// Reports the right edge of the view it backs, in window coordinates. Measured
-/// in AppKit: the sidebar lives in a split-view column, where SwiftUI's own
-/// geometry (`GeometryReader`, `.global`) did not give the column's real edge.
-struct TrailingEdgeReader: NSViewRepresentable {
+/// Reports one horizontal edge (right by default) of the view it backs, in
+/// window coordinates. Measured in AppKit: the sidebar lives in a split-view
+/// column, and the search field in a toolbar item, where SwiftUI's own
+/// geometry (`GeometryReader`, `.global`) did not give the real edge.
+struct HorizontalEdgeReader: NSViewRepresentable {
+    var edge: HorizontalEdge = .trailing
     let onChange: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> EdgeView {
         let view = EdgeView()
+        view.leading = edge == .leading
         view.onChange = onChange
         return view
     }
@@ -268,6 +271,7 @@ struct TrailingEdgeReader: NSViewRepresentable {
 
     final class EdgeView: NSView {
         var onChange: ((CGFloat) -> Void)?
+        var leading = false
         private var last: CGFloat?
 
         /// Frame observers on the ancestors: when one moves without resizing
@@ -311,7 +315,8 @@ struct TrailingEdgeReader: NSViewRepresentable {
 
         func report() {
             guard window != nil else { return }
-            let edge = convert(bounds, to: nil).maxX.rounded()
+            let frame = convert(bounds, to: nil)
+            let edge = (leading ? frame.minX : frame.maxX).rounded()
             guard edge != last else { return }
             last = edge
             DispatchQueue.main.async { [weak self] in self?.onChange?(edge) }

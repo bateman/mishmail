@@ -1,4 +1,4 @@
-import CoreGraphics
+import Foundation
 
 /// How a conversation opens from the list (Settings → Appearance).
 enum ThreadOpenStyle: String, CaseIterable {
@@ -36,7 +36,20 @@ enum MailLayoutMode: Equatable {
 enum MailLayout {
     /// Below this width, keeping sidebar + list + message visible makes the
     /// reading pane too narrow to read. Compact mode swaps list and message.
-    static let threePaneMinimumWidth: CGFloat = 1_080
+    /// UI tests only (`DREAMAIL_UI_TEST=1`) may lower it with
+    /// `DREAMAIL_THREE_PANE_MIN_WIDTH`: the CI screen is 1024 pt wide, too
+    /// narrow for three panes at 1080.
+    static let threePaneMinimumWidth: CGFloat = resolvedThreePaneMinimumWidth(
+        environment: ProcessInfo.processInfo.environment)
+
+    static func resolvedThreePaneMinimumWidth(environment: [String: String]) -> CGFloat {
+        if environment["DREAMAIL_UI_TEST"] == "1",
+           let raw = environment["DREAMAIL_THREE_PANE_MIN_WIDTH"],
+           let value = Double(raw), value > 0 {
+            return CGFloat(value)
+        }
+        return 1_080
+    }
 
     /// First-launch window width. Must fit three panes, since the default
     /// open style is the reading pane (`ThreadOpenStyle.defaultStyle`).

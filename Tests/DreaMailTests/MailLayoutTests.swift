@@ -85,4 +85,17 @@ final class MailLayoutTests: XCTestCase {
         // Ask AI still takes its width.
         XCTAssertEqual(MailLayout.modeWidth(host: 1_000, askAIPanel: 300, stripShown: true), 740)
     }
+
+    /// The threshold override is honoured in UI tests only, and only when valid.
+    func testThreePaneThresholdOverrideIsForUITestsOnly() {
+        XCTAssertEqual(MailLayout.resolvedThreePaneMinimumWidth(environment: [:]), 1_080)
+        XCTAssertEqual(MailLayout.resolvedThreePaneMinimumWidth(
+            environment: ["DREAMAIL_THREE_PANE_MIN_WIDTH": "900"]), 1_080)
+        XCTAssertEqual(MailLayout.resolvedThreePaneMinimumWidth(
+            environment: ["DREAMAIL_UI_TEST": "1", "DREAMAIL_THREE_PANE_MIN_WIDTH": "900"]), 900)
+        XCTAssertEqual(MailLayout.resolvedThreePaneMinimumWidth(
+            environment: ["DREAMAIL_UI_TEST": "1", "DREAMAIL_THREE_PANE_MIN_WIDTH": "x"]), 1_080)
+        XCTAssertEqual(MailLayout.resolvedThreePaneMinimumWidth(
+            environment: ["DREAMAIL_UI_TEST": "1", "DREAMAIL_THREE_PANE_MIN_WIDTH": "-5"]), 1_080)
+    }
 }
