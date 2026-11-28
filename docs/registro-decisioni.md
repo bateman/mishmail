@@ -1,6 +1,6 @@
 # Client Gmail per macOS — Registro delle decisioni
 
-Versione: 0.49
+Versione: 0.50
 Ultimo aggiornamento: 28 novembre 2026
 Stato: documento in evoluzione
 
@@ -105,6 +105,7 @@ Sviluppare un client e-mail desktop per macOS, dedicato esclusivamente agli acco
 | DEC-091 | **Barra di selezione come Gmail ed etichette su più conversazioni** | Come la barra di Gmail web: con più conversazioni spuntate la barra offre Archive o Move to inbox, Report spam o Not spam, Trash, Read/Unread, Snooze, Move to…, Label as… e Star, e ciò che non entra passa sotto "⋮". Scelte dell'app: dove Gmail nasconde un pulsante (Cestino, Spam) qui è spento; una selezione mista di spam mostra Report spam; Star è l'ultima. "Label as…" su più conversazioni segue Gmail: spunta se l'hanno tutte, trattino se alcune, un clic la aggiunge a tutte oppure la toglie quando l'avevano tutte; si scrivono e si inviano solo le conversazioni che cambiano, e l'annullamento rimette esattamente quelle. Le etichette sono di un account: le conversazioni di altri account restano fuori, con un avviso; le copie cestinate di conversazioni vive non sono contate né toccate (DEC-081). PR #123. |
 | DEC-092 | **Colore delle etichette solo di Gmail** (sostituisce in parte DEC-071 e DEC-087) | Il foglio "Label color" è come il menu di Gmail web: la griglia dei colori di Gmail e "Remove color", nient'altro. Il colore "solo su questo Mac" non c'è più: non è letto né scritto, un'etichetta che lo aveva mostra di nuovo il colore di Gmail; il valore resta nel database (colonna `color`), senza migrazione. Tolta anche la riga diagnostica "Current:" (#118), non più necessaria: i colori mancanti erano colori non standard in Gmail, corretti dal proprietario. Restano valide da DEC-071 la propagazione del colore alle annidate e l'eredità della sottoetichetta nuova (DEC-087), solo per il colore di Gmail. PR #127. |
 | DEC-093 | **Menu "⋮" del messaggio come Gmail, con la stampa** (precisa DEC-090) | Il menu "⋮" di un messaggio aperto ha i gruppi di Gmail web separati da linee: Reply, Reply all, Forward / Delete, Mark as unread / Block (o Unblock), Report spam (o Not spam) / Filter messages like this, Print, Download message, Show original. Titoli di Gmail ("Reply all", "Delete", "Mark as unread", che segna da questo messaggio in poi); comportamento invariato. Fuori le voci che l'app non sa fare (Report phishing, Report illegal content, Translate). **Print** stampa il solo messaggio (intestazione con oggetto, mittente, destinatari, data; corpo come nel pannello) con il pannello di stampa di macOS; le immagini remote seguono la stessa scelta del pannello, JavaScript spento, un solo caricamento accettato; il nome del lavoro è l'oggetto (come Gmail). Permesso di sandbox `com.apple.security.print`. PR #129. |
+| DEC-094 | **Colore delle etichette: abbinamenti e colore personalizzato come Gmail** (sostituisce in parte DEC-092) | Il foglio "Label color" mostra i 30 abbinamenti sfondo/testo di Gmail web (5×6, cerchi con una "a" nel colore del testo, spunta su quello attuale), poi "Add custom color" e "Remove color". "Add custom color" apre una finestra con anteprima dell'etichetta e due griglie, "Background color" e "Text color" (le 64 tinte di Gmail), Cancel e Apply. Abbinamenti misurati da una schermata di Gmail web e agganciati alla palette dell'API; tre colori del testo nella quarta riga sono stimati. Tutto passa dal percorso di scrittura esistente (propagazione alle annidate invariata); nessun dato nuovo. Resta da DEC-092: nessun colore "solo su questo Mac". PR #131. |
 
 ## 3. Stack (verificato nel fork al commit `18294fa`, salvo dove indicato)
 
@@ -533,6 +534,7 @@ Fonte canonica: questo documento unifica piano e risultati essenziali dell'audit
 | 2026-11-27 | **0.47** | Aggiunta DEC-091 (barra di selezione come Gmail ed etichette su più conversazioni). |
 | 2026-11-28 | **0.48** | Aggiunta DEC-092 (colore delle etichette solo di Gmail; via il colore "solo su questo Mac"). |
 | 2026-11-28 | **0.49** | Aggiunta DEC-093 (menu "⋮" del messaggio come Gmail, con la stampa). |
+| 2026-11-28 | **0.50** | Aggiunta DEC-094 (abbinamenti e colore personalizzato come Gmail). |
 
 ---
 

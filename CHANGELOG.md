@@ -7,6 +7,11 @@ minor versions may still change behavior.
 
 ## [Unreleased]
 
+- **Label colours as in Gmail.** "Label color" offers Gmail's 30
+  background/text pairs, each shown as a circle with an "a" in the text
+  colour, plus "Add custom color" (pick background and text separately,
+  with a live preview of the label) and "Remove color". (#131)
+
 - **Print a message, and the message menu in Gmail's groups.** The "⋮"
   menu of an open message is grouped like Gmail's, with Gmail's wording
   ("Reply all", "Delete", "Mark as unread"). The new "Print" prints that
