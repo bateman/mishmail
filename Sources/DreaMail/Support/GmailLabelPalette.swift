@@ -60,6 +60,71 @@ enum GmailLabelPalette {
     }
 }
 
+/// Gmail web's "Label color" menu: 24 preset pairs in 4 rows of 6, each
+/// a background and a text color.
+///
+/// Origin: the swatches of Gmail web's label color menu. Their values are
+/// the twelve two-tone pairs the users.labels reference lists at the end of
+/// the palette (`#464646`/`#e7e7e7` to `#04502e`/`#a2dcc1`, side by side),
+/// each used both ways: the first two rows a light background with dark
+/// text, the last two the same hues dark with light text. All are in
+/// `GmailLabelPalette.allowed`, so `labels.patch` accepts them.
+enum GmailLabelColorMenu {
+    static let columns = 6
+
+    /// Background, text; in menu order (row by row).
+    static let table: [(String, String)] = [
+        ("#e7e7e7", "#464646"), ("#b6cff5", "#0d3472"), ("#98d7e4", "#0d3b44"),
+        ("#e3d7ff", "#3d188e"), ("#fbd3e0", "#711a36"), ("#f2b2a8", "#8a1c0a"),
+        ("#ffc8af", "#7a2e0b"), ("#ffdeb5", "#7a4706"), ("#fbe983", "#594c05"),
+        ("#fdedc1", "#684e07"), ("#b3efd3", "#0b4f30"), ("#a2dcc1", "#04502e"),
+        ("#464646", "#e7e7e7"), ("#0d3472", "#b6cff5"), ("#0d3b44", "#98d7e4"),
+        ("#3d188e", "#e3d7ff"), ("#711a36", "#fbd3e0"), ("#8a1c0a", "#f2b2a8"),
+        ("#7a2e0b", "#ffc8af"), ("#7a4706", "#ffdeb5"), ("#594c05", "#fbe983"),
+        ("#684e07", "#fdedc1"), ("#0b4f30", "#b3efd3"), ("#04502e", "#a2dcc1"),
+    ]
+
+    static let presets: [GmailLabelColor] = table.map { GmailLabelColor(background: $0.0, text: $0.1)! }
+
+    /// The preset that carries the check mark: the one equal to the label's
+    /// colors as drawn (both of them, case and `#` aside), or nil.
+    static func checked(_ colors: LabelColors) -> GmailLabelColor? {
+        guard let current = GmailLabelColor(background: colors.background, text: colors.text) else { return nil }
+        return presets.first { $0 == current }
+    }
+}
+
+/// The "Add custom color" dialog's choice: a background and a text color
+/// from the grids, starting from the label's colors.
+struct GmailCustomLabelColor: Equatable {
+    /// The choice when the label has no color (or one the API refuses):
+    /// Gmail's light grey with black text.
+    static let defaultColor = GmailLabelColor(background: "#cccccc", text: "#000000")!
+
+    private(set) var color: GmailLabelColor
+
+    /// Each of the label's two colors is kept when the API accepts it;
+    /// the other falls back to `defaultColor`'s.
+    init(current: LabelColors) {
+        let bg = GmailLabelColor(background: current.background, text: Self.defaultColor.text)?.background
+        let fg = GmailLabelColor(background: Self.defaultColor.background, text: current.text)?.text
+        color = GmailLabelColor(background: bg ?? Self.defaultColor.background,
+                                text: fg ?? Self.defaultColor.text)!
+    }
+
+    /// A value the API refuses changes nothing.
+    mutating func pick(background hex: String) {
+        if let c = GmailLabelColor(background: hex, text: color.text) { color = c }
+    }
+
+    mutating func pick(text hex: String) {
+        if let c = GmailLabelColor(background: color.background, text: hex) { color = c }
+    }
+
+    /// What the dialog writes to Gmail: the choice on Apply, nothing on Cancel.
+    func result(applied: Bool) -> GmailLabelColor? { applied ? color : nil }
+}
+
 /// Gmail's label color presets (`colorPreset`, e.g.
 /// `LABEL_COLOR_PRESET_DARK_GREEN`).
 ///

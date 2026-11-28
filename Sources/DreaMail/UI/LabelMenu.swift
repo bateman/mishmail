@@ -177,8 +177,8 @@ struct LabelMenuPresentation: ViewModifier {
     }
 }
 
-/// "Label color ▸ Choose color…": the Organize sheet's palette for one
-/// label, showing its colors as they are now.
+/// "Label color ▸ Choose color…": Gmail's label color menu for one label,
+/// showing its colors as they are now, and its "Add custom color" dialog.
 struct LabelColorSheet: View {
     @Environment(MailStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -186,28 +186,13 @@ struct LabelColorSheet: View {
 
     var body: some View {
         let row = store.userLabels(forAccount: label.accountId).first { $0.id == label.id } ?? label
-        VStack(alignment: .leading, spacing: 8) {
-            Text(verbatim: "Label color: " + LabelText.quoted(row.name)).font(.headline)
-                .lineLimit(1).truncationMode(.middle)
-                .padding([.top, .horizontal], 12)
-            LabelColorPalette(label: row) { dismiss() }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("labelColor.palette")
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .accessibilityIdentifier("labelColor.done")
-            }
-            .padding([.bottom, .horizontal], 12)
-        }
-        // As wide as the palette (244 pt, its own padding included), not the
-        // system's minimum sheet width; as tall as its content.
-        .frame(width: 244)
-        .fixedSize(horizontal: false, vertical: true)
-        // Escape closes it, whatever holds the focus (a swatch button can
-        // take the key before the Done button's cancel shortcut sees it).
-        .onExitCommand { dismiss() }
+        LabelColorChooser(label: row, title: "Label color: " + LabelText.quoted(row.name)) { dismiss() }
+            // As large as its content (the menu, or the wider custom
+            // dialog), not the system's minimum sheet size.
+            .fixedSize()
+            // Escape closes it, whatever holds the focus (a swatch button can
+            // take the key before the cancel shortcut sees it).
+            .onExitCommand { dismiss() }
     }
 }
 
