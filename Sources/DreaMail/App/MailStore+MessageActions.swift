@@ -20,7 +20,7 @@ extension MailStore {
         }
     }
 
-    /// "Delete this message": to the Trash, this message only. The
+    /// "Delete": to the Trash, this message only. The
     /// conversation stays where it is while another of its messages is
     /// outside the Trash (DEC-081); deleting its last message (with no
     /// live draft left) trashes the conversation, with that action's own
@@ -48,7 +48,7 @@ extension MailStore {
         }
     }
 
-    /// "Mark unread from here": this message and the later ones `shown`
+    /// "Mark as unread": this message and the later ones `shown`
     /// (the open conversation, oldest first). The conversation stays open.
     func markUnreadFromHere(_ message: Message, shown: [Message]) {
         let ids = MessageActions.unreadFromHereIds(in: shown, from: message.id)

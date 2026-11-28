@@ -6,24 +6,25 @@ import GRDB
 /// "More" menu (⋮). Pure — tested; `MessageCard` draws it and
 /// `MailStore+MessageActions` runs it.
 enum MessageActions {
-    /// Gmail web's per-message "More" menu, in its order, keeping only what
-    /// DreaMail really does. Left out on purpose: "Print" (needs the print
-    /// entitlement, the owner's decision), "Add to Contacts list" (needs a
-    /// Contacts permission DreaMail does not have), "Report phishing" and
-    /// "Translate message" (they send the message to Google).
+    /// Gmail web's per-message "More" menu, in its order and its groups,
+    /// keeping only what DreaMail really does. Left out on purpose: "Add to
+    /// Contacts list" (needs a Contacts permission DreaMail does not have),
+    /// "Report phishing", "Report illegal content", "Translate message" and
+    /// "Share to help improve Google" (they send the message to Google).
     enum MenuItem: Equatable, CaseIterable {
         case reply
         case replyAll
         case forward
-        case filterLikeThis
         case deleteMessage
+        case markUnreadFromHere
         case blockSender
         case unblockSender
         case reportSpam
         case reportNotSpam
-        case showOriginal
+        case filterLikeThis
+        case print
         case downloadMessage
-        case markUnreadFromHere
+        case showOriginal
     }
 
     /// What the menu depends on, read from the message and the store.
@@ -39,38 +40,49 @@ enum MessageActions {
         var isTrashed: Bool
     }
 
-    static func menuItems(_ context: Context) -> [MenuItem] {
-        var items: [MenuItem] = [.reply]
-        if context.canReplyAll { items.append(.replyAll) }
-        items += [.forward, .filterLikeThis]
-        if !context.isTrashed { items.append(.deleteMessage) }
+    /// The menu's groups, as Gmail draws them with a divider between:
+    /// answer; delete and unread; sender and spam; the message itself.
+    /// A group left empty (a trashed message from oneself) is dropped.
+    static func menuSections(_ context: Context) -> [[MenuItem]] {
+        var answer: [MenuItem] = [.reply]
+        if context.canReplyAll { answer.append(.replyAll) }
+        answer.append(.forward)
+        var state: [MenuItem] = []
+        if !context.isTrashed { state.append(.deleteMessage) }
+        state.append(.markUnreadFromHere)
+        var sender: [MenuItem] = []
         // Not from the Trash view: the blocklist reaches the sender's live
         // conversations, which are not on screen there.
         if !context.fromSelf, !context.isTrashed {
-            items.append(context.senderBlocked ? .unblockSender : .blockSender)
+            sender.append(context.senderBlocked ? .unblockSender : .blockSender)
         }
         if !context.isTrashed {
-            items.append(context.threadInSpam ? .reportNotSpam : .reportSpam)
+            sender.append(context.threadInSpam ? .reportNotSpam : .reportSpam)
         }
-        items += [.showOriginal, .downloadMessage, .markUnreadFromHere]
-        return items
+        let message: [MenuItem] = [.filterLikeThis, .print, .downloadMessage, .showOriginal]
+        return [answer, state, sender, message].filter { !$0.isEmpty }
+    }
+
+    static func menuItems(_ context: Context) -> [MenuItem] {
+        menuSections(context).flatMap { $0 }
     }
 
     /// Gmail web's wording (English).
     static func title(_ item: MenuItem, senderName: String) -> String {
         switch item {
         case .reply: return "Reply"
-        case .replyAll: return "Reply to all"
+        case .replyAll: return "Reply all"
         case .forward: return "Forward"
         case .filterLikeThis: return "Filter messages like this"
-        case .deleteMessage: return "Delete this message"
+        case .deleteMessage: return "Delete"
         case .blockSender: return "Block \"\(senderName)\""
         case .unblockSender: return "Unblock \"\(senderName)\""
         case .reportSpam: return "Report spam"
         case .reportNotSpam: return "Report not spam"
         case .showOriginal: return "Show original"
+        case .print: return "Print"
         case .downloadMessage: return "Download message"
-        case .markUnreadFromHere: return "Mark unread from here"
+        case .markUnreadFromHere: return "Mark as unread"
         }
     }
 
@@ -87,6 +99,7 @@ enum MessageActions {
         case .reportSpam: return "exclamationmark.octagon"
         case .reportNotSpam: return "checkmark.shield"
         case .showOriginal: return "doc.text.magnifyingglass"
+        case .print: return "printer"
         case .downloadMessage: return "arrow.down.circle"
         case .markUnreadFromHere: return "envelope.badge"
         }
@@ -96,7 +109,7 @@ enum MessageActions {
         SyncEngine.labelIdsContain(message.labelIds, "STARRED")
     }
 
-    /// Gmail ids "Mark unread from here" changes: this message and the
+    /// Gmail ids "Mark as unread" changes: this message and the
     /// later ones the pane shows, drafts left out. A message whose row
     /// still says unread is included: read on open writes only the thread
     /// row, so that row says nothing about what Gmail holds.

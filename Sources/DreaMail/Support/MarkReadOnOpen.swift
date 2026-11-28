@@ -20,7 +20,7 @@ enum MarkReadOnOpen {
     ///     back to the pre-open snapshot, which can resurrect `inInbox` via
     ///     a stale whole-model `setRead`.
     ///   - userMarkedUnread: the user marked messages unread during the
-    ///     dwell ("Mark unread from here"): the open must not undo it.
+    ///     dwell ("Mark as unread"): the open must not undo it.
     static func shouldMarkRead(selectedId: String?, threadId: String,
                                liveIsUnread: Bool?, userMarkedUnread: Bool = false) -> Bool {
         guard let liveIsUnread, !userMarkedUnread else { return false }

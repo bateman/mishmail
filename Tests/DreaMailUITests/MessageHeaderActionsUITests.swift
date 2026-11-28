@@ -3,7 +3,7 @@ import XCTest
 /// The header of an open message, as Gmail on the web: after the date, the
 /// star, Reply, Reply all and "More" (⋮), whose menu keeps Gmail's order.
 /// The star belongs to that message only; a conversation with a starred
-/// message opens on it; "Delete this message" trashes only that message and
+/// message opens on it; "Delete" trashes only that message and
 /// the conversation stays in the Inbox, with Undo.
 /// Demo t7 is one message copied to a second person (Reply all differs from
 /// Reply), already starred; demo t2 has four messages, none starred.
@@ -92,9 +92,9 @@ final class MessageHeaderActionsUITests: XCTestCase {
         let app = launch()
         let steps: [(String, (XCUIApplication) -> Void)] = [
             ("Star, Reply, Reply all and More follow the date", stepControlsFollowTheDate),
-            ("More lists Gmail's items in Gmail's order", stepMoreMenuKeepsGmailsOrder),
+            ("More lists Gmail's items in Gmail's order and groups", stepMoreMenuKeepsGmailsOrder),
             ("The star is the message's own; the conversation opens on it", stepStarredMessageOpensTheConversation),
-            ("Delete this message keeps the conversation in the Inbox, with Undo", stepDeleteThisMessage),
+            ("Delete keeps the conversation in the Inbox, with Undo", stepDeleteThisMessage),
         ]
         for (name, step) in steps {
             XCTContext.runActivity(named: name) { _ in step(app) }
@@ -161,7 +161,7 @@ final class MessageHeaderActionsUITests: XCTestCase {
     /// The open "More" menu: the menu holding an item only it has, so the
     /// menu bar's own Reply / Forward items never match.
     private func moreMenu(_ app: XCUIApplication) -> XCUIElement {
-        app.menus.containing(NSPredicate(format: "title == 'Mark unread from here'")).firstMatch
+        app.menus.containing(NSPredicate(format: "title == 'Filter messages like this'")).firstMatch
     }
 
     private func stepMoreMenuKeepsGmailsOrder(_ app: XCUIApplication) {
@@ -169,19 +169,38 @@ final class MessageHeaderActionsUITests: XCTestCase {
         let more = element(app, "messageHeaderMore")
         XCTAssertTrue(more.appears(timeout: 5))
         more.click()
-        let expected = ["Reply", "Reply to all", "Forward", "Filter messages like this",
-                        "Delete this message", "Block \"Marcus Bell\"", "Report spam",
-                        "Show original", "Download message", "Mark unread from here"]
+        // Gmail's groups, a divider between each.
+        let groups = [["Reply", "Reply all", "Forward"],
+                      ["Delete", "Mark as unread"],
+                      ["Block \"Marcus Bell\"", "Report spam"],
+                      ["Filter messages like this", "Print", "Download message", "Show original"]]
         let menu = moreMenu(app)
         XCTAssertTrue(menu.appears(timeout: 5), "the menu opens")
-        var tops: [CGFloat] = []
-        for title in expected {
-            let item = menu.menuItems[title]
-            XCTAssertTrue(item.exists, "\(title) is in the menu")
-            tops.append(item.frame.minY)
+        var tops: [[CGFloat]] = []
+        for group in groups {
+            tops.append(group.map { title in
+                let item = menu.menuItems[title]
+                XCTAssertTrue(item.exists, "\(title) is in the menu")
+                return item.frame.minY
+            })
         }
-        XCTAssertEqual(tops, tops.sorted(), "Gmail's order")
-        for gone in ["Report phishing", "Translate message", "Print"] {
+        let flat = tops.flatMap { $0 }
+        XCTAssertEqual(flat, flat.sorted(), "Gmail's order")
+        // An item's step inside a group; a divider adds to it between groups.
+        let step = tops[0][1] - tops[0][0]
+        for index in 1..<tops.count {
+            let gap = tops[index][0] - (tops[index - 1].last ?? 0)
+            XCTAssertGreaterThan(gap, step + 4,
+                                 "a divider before \(groups[index][0])")
+        }
+        for index in tops.indices {
+            for (above, below) in zip(tops[index], tops[index].dropFirst()) {
+                XCTAssertEqual(below - above, step, accuracy: 1,
+                               "no divider inside the group of \(groups[index][0])")
+            }
+        }
+        for gone in ["Report phishing", "Report illegal content", "Translate message",
+                     "Share to help improve Google"] {
             XCTAssertFalse(menu.menuItems[gone].exists, "\(gone) is left out, not disabled")
         }
         XCTAssertFalse(menu.menuItems.matching(NSPredicate(format: "title CONTAINS 'Contacts'"))
@@ -259,7 +278,7 @@ final class MessageHeaderActionsUITests: XCTestCase {
             .min { $0.frame.minY < $1.frame.minY }
         XCTAssertNotNil(more, "an open message has More")
         more?.click()
-        let delete = moreMenu(app).menuItems["Delete this message"]
+        let delete = moreMenu(app).menuItems["Delete"]
         XCTAssertTrue(delete.appears(timeout: 5))
         delete.click()
     }

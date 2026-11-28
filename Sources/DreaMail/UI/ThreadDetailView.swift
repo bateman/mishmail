@@ -179,7 +179,7 @@ struct ThreadDetailView: View {
     @State private var blockTarget: BlockTarget?
     /// Message ids we already tried to backfill List-Unsubscribe for.
     @State private var unsubscribeRefreshAttempted: Set<String> = []
-    /// "Mark unread from here" during the read-on-open dwell: the dwell
+    /// "Mark as unread" during the read-on-open dwell: the dwell
     /// must not mark the conversation read again.
     @State private var markedUnreadSinceOpen = false
 
@@ -2092,7 +2092,7 @@ struct MessageCard: View {
     let onUnsubscribe: () -> Void
     /// Parent fills List-Unsubscribe on pre-v37 rows (nil).
     let onNeedUnsubscribeHeaders: () -> Void
-    /// "Mark unread from here": the parent knows the later messages.
+    /// "Mark as unread": the parent knows the later messages.
     let onMarkUnreadFromHere: () -> Void
     /// The sheet a "More" item opened: the filter editor ("Filter messages
     /// like this", from this sender) or "Show original".
@@ -2733,49 +2733,90 @@ struct MessageCard: View {
             isTrashed: TrashedMessages.isTrashed(message))
     }
 
-    /// Gmail web's per-message menu, in its order (`MessageActions`).
+    /// Gmail web's per-message menu, in its order and groups
+    /// (`MessageActions`), a divider between groups.
     @ViewBuilder
     private var moreMenuItems: some View {
-        let email = MessageParser.emailAddress(message.fromHeader)
-        ForEach(MessageActions.menuItems(menuContext), id: \.self) { item in
-            Button(role: item == .deleteMessage || item == .blockSender ? .destructive : nil) {
-                switch item {
-                case .reply:
-                    store.openCompose(.init(replyTo: message))
-                case .replyAll:
-                    store.openCompose(.init(replyTo: message, replyAll: true))
-                case .forward:
-                    store.openCompose(.init(replyTo: message, forward: true))
-                case .filterLikeThis:
-                    var draft = GmailFilterDraft()
-                    draft.from = MessageActions.filterFromAddress(message.fromHeader)
-                    menuSheet = .filter(GmailFilterEditTarget(
-                        accountId: message.accountId, original: nil, prefill: draft))
-                case .deleteMessage:
-                    store.trashMessage(message)
-                case .blockSender:
-                    onBlockSender(email)
-                case .unblockSender:
-                    store.unblockSender(email)
-                case .reportSpam:
-                    store.reportSpam(message, spam: true)
-                case .reportNotSpam:
-                    store.reportSpam(message, spam: false)
-                case .showOriginal:
-                    menuSheet = .original
-                case .downloadMessage:
-                    store.downloadMessage(message)
-                case .markUnreadFromHere:
-                    onMarkUnreadFromHere()
-                }
-            } label: {
-                // macOS draws a Label in a menu title-only unless asked for both.
-                Label(MessageActions.title(item, senderName: senderName),
-                      systemImage: MessageActions.symbol(item))
-                    .labelStyle(.titleAndIcon)
+        let sections = MessageActions.menuSections(menuContext)
+        ForEach(sections.indices, id: \.self) { index in
+            if index > 0 { Divider() }
+            ForEach(sections[index], id: \.self) { item in
+                moreMenuButton(item)
             }
-            .accessibilityIdentifier("messageMenu.\(item)")
         }
+    }
+
+    /// Prints this message as the pane renders it (`MessagePrint`): the
+    /// body the card shows, with the card's remote-image decision.
+    private func printMessage() {
+        var html = cidInlinedHTML ?? message.bodyHTML
+        var allow = allowRemoteImages
+        if case .remote(let remote) = remoteChoice {
+            html = remote.html
+            allow = remote.loadAllowsRemoteImages
+        }
+        // OpenPGP: the text shown in place of the body, or its notice.
+        let replacement: String? = {
+            switch pgpBody {
+            case .text(let shown): return shown
+            case .notice(let notice): return notice.text
+            case .original, nil: return nil
+            }
+        }()
+        let body = MessagePrint.body(replacement: replacement, showPlainText: showPlainText,
+                                     html: html, text: message.bodyText)
+        let header = MessagePrint.headerHTML(
+            subject: message.subject, from: message.fromHeader,
+            to: message.toHeader, cc: message.ccHeader, date: message.date)
+        if case .text = body { allow = false }
+        MessagePrinter.print(
+            document: MessagePrint.document(header: header, body: body, allowRemoteImages: allow),
+            allowRemoteImages: allow,
+            jobTitle: MessagePrint.jobTitle(subject: message.subject),
+            window: NSApp.keyWindow)
+    }
+
+    private func moreMenuButton(_ item: MessageActions.MenuItem) -> some View {
+        let email = MessageParser.emailAddress(message.fromHeader)
+        return Button(role: item == .deleteMessage || item == .blockSender ? .destructive : nil) {
+            switch item {
+            case .reply:
+                store.openCompose(.init(replyTo: message))
+            case .replyAll:
+                store.openCompose(.init(replyTo: message, replyAll: true))
+            case .forward:
+                store.openCompose(.init(replyTo: message, forward: true))
+            case .filterLikeThis:
+                var draft = GmailFilterDraft()
+                draft.from = MessageActions.filterFromAddress(message.fromHeader)
+                menuSheet = .filter(GmailFilterEditTarget(
+                    accountId: message.accountId, original: nil, prefill: draft))
+            case .deleteMessage:
+                store.trashMessage(message)
+            case .blockSender:
+                onBlockSender(email)
+            case .unblockSender:
+                store.unblockSender(email)
+            case .reportSpam:
+                store.reportSpam(message, spam: true)
+            case .reportNotSpam:
+                store.reportSpam(message, spam: false)
+            case .showOriginal:
+                menuSheet = .original
+            case .print:
+                printMessage()
+            case .downloadMessage:
+                store.downloadMessage(message)
+            case .markUnreadFromHere:
+                onMarkUnreadFromHere()
+            }
+        } label: {
+            // macOS draws a Label in a menu title-only unless asked for both.
+            Label(MessageActions.title(item, senderName: senderName),
+                  systemImage: MessageActions.symbol(item))
+                .labelStyle(.titleAndIcon)
+        }
+        .accessibilityIdentifier("messageMenu.\(item)")
     }
 
     var body: some View {

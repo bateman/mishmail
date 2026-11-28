@@ -55,14 +55,30 @@ final class MessageActionsTests: XCTestCase {
         canReplyAll: true, fromSelf: false, senderBlocked: false,
         threadInSpam: false, isTrashed: false)
 
-    func testMenuKeepsGmailsOrderAndWording() {
-        let titles = MessageActions.menuItems(typical).map {
-            MessageActions.title($0, senderName: "Ann")
+    func testMenuKeepsGmailsOrderGroupsAndWording() {
+        let titles = MessageActions.menuSections(typical).map { section in
+            section.map { MessageActions.title($0, senderName: "Ann") }
         }
         XCTAssertEqual(titles, [
-            "Reply", "Reply to all", "Forward", "Filter messages like this",
-            "Delete this message", "Block \"Ann\"", "Report spam", "Show original",
-            "Download message", "Mark unread from here",
+            ["Reply", "Reply all", "Forward"],
+            ["Delete", "Mark as unread"],
+            ["Block \"Ann\"", "Report spam"],
+            ["Filter messages like this", "Print", "Download message", "Show original"],
+        ])
+        XCTAssertEqual(MessageActions.menuItems(typical),
+                       MessageActions.menuSections(typical).flatMap { $0 })
+        XCTAssertEqual(MessageActions.symbol(.print), "printer")
+    }
+
+    /// A trashed message from oneself has nothing in the sender and spam
+    /// group: no empty group, so no doubled divider.
+    func testAnEmptyGroupIsDropped() {
+        let c = MessageActions.Context(canReplyAll: false, fromSelf: true, senderBlocked: false,
+                                       threadInSpam: false, isTrashed: true)
+        XCTAssertEqual(MessageActions.menuSections(c), [
+            [.reply, .forward],
+            [.markUnreadFromHere],
+            [.filterLikeThis, .print, .downloadMessage, .showOriginal],
         ])
     }
 
@@ -73,7 +89,7 @@ final class MessageActionsTests: XCTestCase {
             let titles = MessageActions.menuItems(context).map {
                 MessageActions.title($0, senderName: "Ann").lowercased()
             }
-            for gone in ["phishing", "translate", "contacts", "print"] {
+            for gone in ["phishing", "translate", "contacts"] {
                 XCTAssertFalse(titles.contains { $0.contains(gone) }, gone)
             }
         }
@@ -605,7 +621,7 @@ final class MessageActionsTests: XCTestCase {
     }
 
     /// The Restore of a deleted card, as `restoreDeletedMessages` writes it:
-    /// the same per-message path as "Delete this message".
+    /// the same per-message path as "Delete".
     private func restore(_ q: DatabaseQueue, _ id: String) throws {
         let row = try thread(q)
         guard case .modifyMessages(let ids, let add, let remove) = DeletedMessagesInConversation
@@ -700,7 +716,7 @@ final class MessageActionsTests: XCTestCase {
     }
 
     func testARefusedDeleteThenRestoreAllIsRevertedNewestFirst() throws {
-        // Offline: "Delete this message" on b, then #107's "Restore all"
+        // Offline: "Delete" on b, then #107's "Restore all"
         // on b and c (different ids: two queued steps, not folded). Gmail
         // refuses the whole queued change: b was never trashed there.
         let q = try makeDB([msg("a", minutesAgo: 60, labels: "INBOX"),
