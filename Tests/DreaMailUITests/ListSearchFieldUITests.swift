@@ -337,6 +337,7 @@ final class ListSearchFieldUITests: XCTestCase {
             let f = field.exists ? field.frame : .zero
             if f.width <= 1 {
                 print("ListSearchField threePanes [\(step)]: window \(app.windows.firstMatch.frame), divider \(divider.frame), row \(row.frame), title \(title.frame), field hidden (\(f))")
+                if field.exists { XCTAssertFalse(field.isHittable, "step \(step): a hidden field is not hittable") }
                 XCTAssertTrue(sawShrink, "step \(step): hidden only once the field has shrunk for lack of room")
                 XCTAssertLessThan(previousWidth, ListHeaderMetrics.minWidth + 120,
                                   "step \(step): hidden only near the minimum (last width \(previousWidth))")
