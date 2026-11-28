@@ -22,16 +22,13 @@ enum MessagePrint {
     }
 
     /// The pane's body rules, without its collapsed quote (Gmail prints the
-    /// whole message): an OpenPGP replacement first (decrypted or signed
-    /// text, or its notice: never the armor), then the "Show plain text"
-    /// choice, then the HTML body, then the plain text.
-    static func body(pgp: PGPBodyDisplay?, showPlainText: Bool,
+    /// whole message): the text that replaces the body first (the card's
+    /// decrypted or signed PGP text, or its notice: never the armor),
+    /// then the "Show plain text" choice, then the HTML body, then the
+    /// plain text.
+    static func body(replacement: String?, showPlainText: Bool,
                      html: String?, text: String) -> Body {
-        switch pgp {
-        case .text(let shown): return .text(shown)
-        case .notice(let notice): return .text(notice.text)
-        case .original, nil: break
-        }
+        if let replacement { return .text(replacement) }
         if showPlainText, !text.isEmpty { return .text(text) }
         if let html, !html.isEmpty { return .html(html) }
         return .text(text)

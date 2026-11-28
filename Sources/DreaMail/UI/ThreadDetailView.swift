@@ -2755,7 +2755,15 @@ struct MessageCard: View {
             html = remote.html
             allow = remote.loadAllowsRemoteImages
         }
-        let body = MessagePrint.body(pgp: pgpBody, showPlainText: showPlainText,
+        // OpenPGP: the text shown in place of the body, or its notice.
+        let replacement: String? = {
+            switch pgpBody {
+            case .text(let shown): return shown
+            case .notice(let notice): return notice.text
+            case .original, nil: return nil
+            }
+        }()
+        let body = MessagePrint.body(replacement: replacement, showPlainText: showPlainText,
                                      html: html, text: message.bodyText)
         let header = MessagePrint.headerHTML(
             subject: message.subject, from: message.fromHeader,

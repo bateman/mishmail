@@ -46,29 +46,28 @@ final class MessagePrintTests: XCTestCase {
     }
 
     func testBodyFollowsThePane() {
-        XCTAssertEqual(MessagePrint.body(pgp: nil, showPlainText: false, html: "<p>x</p>", text: "x"),
+        XCTAssertEqual(MessagePrint.body(replacement: nil, showPlainText: false, html: "<p>x</p>", text: "x"),
                        .html("<p>x</p>"))
-        XCTAssertEqual(MessagePrint.body(pgp: .original, showPlainText: false, html: "<p>x</p>", text: "x"),
-                       .html("<p>x</p>"))
-        XCTAssertEqual(MessagePrint.body(pgp: nil, showPlainText: true, html: "<p>x</p>", text: "x"),
+        XCTAssertEqual(MessagePrint.body(replacement: nil, showPlainText: true, html: "<p>x</p>", text: "x"),
                        .text("x"), "Show plain text")
-        XCTAssertEqual(MessagePrint.body(pgp: nil, showPlainText: true, html: "<p>x</p>", text: ""),
+        XCTAssertEqual(MessagePrint.body(replacement: nil, showPlainText: true, html: "<p>x</p>", text: ""),
                        .html("<p>x</p>"), "no text to show: the pane keeps the HTML")
-        XCTAssertEqual(MessagePrint.body(pgp: nil, showPlainText: false, html: nil, text: "plain"),
+        XCTAssertEqual(MessagePrint.body(replacement: nil, showPlainText: false, html: nil, text: "plain"),
                        .text("plain"))
-        XCTAssertEqual(MessagePrint.body(pgp: nil, showPlainText: false, html: "", text: "plain"),
+        XCTAssertEqual(MessagePrint.body(replacement: nil, showPlainText: false, html: "", text: "plain"),
                        .text("plain"))
     }
 
-    /// OpenPGP: the decrypted or signed text, or the notice; never the armor.
-    func testPGPReplacementIsPrintedInsteadOfTheBody() {
+    /// OpenPGP: the card's replacement text (decrypted, signed, or a
+    /// notice) is printed instead of the body; never the armor.
+    func testReplacementTextIsPrintedInsteadOfTheBody() {
         let armor = "-----BEGIN PGP MESSAGE-----"
-        XCTAssertEqual(MessagePrint.body(pgp: .text("secret plans"), showPlainText: false,
+        XCTAssertEqual(MessagePrint.body(replacement: "secret plans", showPlainText: false,
                                          html: "<p>\(armor)</p>", text: armor),
                        .text("secret plans"))
-        XCTAssertEqual(MessagePrint.body(pgp: .notice(.noSecretKey), showPlainText: false,
+        XCTAssertEqual(MessagePrint.body(replacement: "a notice", showPlainText: true,
                                          html: "<p>\(armor)</p>", text: armor),
-                       .text(PGPBodyNotice.noSecretKey.text))
+                       .text("a notice"))
     }
 
     func testPlainTextBodyIsEscaped() {
