@@ -148,7 +148,23 @@ final class SidebarLabelMenuUITests: XCTestCase {
                                  "the ⋮ \(dots.frame) is taller than the title \(title.frame)")
     }
 
-    func testColorSheetIsGmailsPaletteAndRemoveAsksFirst() {
+    /// Opens "Label color ▸ Choose color…" on `label`.
+    private func openColorSheet(_ label: XCUIElement, in app: XCUIApplication,
+                                file: StaticString = #filePath, line: UInt = #line) {
+        label.rightClick()
+        let color = menuItem("labelMenu.color", "Label color", in: app)
+        XCTAssertTrue(color.appears(timeout: 5), file: file, line: line)
+        color.hover()
+        let choose = menuItem("labelMenu.color.choose", "Choose color…", in: app)
+        XCTAssertTrue(choose.appears(timeout: 5), file: file, line: line)
+        choose.click()
+    }
+
+    private func presets(in app: XCUIApplication) -> XCUIElementQuery {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'labelColor.preset.'"))
+    }
+
+    func testColorSheetIsGmailsMenuAndRemoveAsksFirst() {
         let app = launch()
         let vendors = label("Label_vendors", in: app)
         let aws = label("Label_vendors_aws", in: app)
@@ -156,15 +172,15 @@ final class SidebarLabelMenuUITests: XCTestCase {
         XCTAssertTrue(reveal(vendors, in: app), "Vendors can be scrolled to")
         XCTAssertTrue(aws.appears(timeout: 5), "Vendors starts open")
 
-        vendors.rightClick()
-        let color = menuItem("labelMenu.color", "Label color", in: app)
-        XCTAssertTrue(color.appears(timeout: 5))
-        color.hover()
-        let choose = menuItem("labelMenu.color.choose", "Choose color…", in: app)
-        XCTAssertTrue(choose.appears(timeout: 5))
-        choose.click()
-        let swatch = element("labelColor.gmail.#fb4c2f", in: app)
-        XCTAssertTrue(swatch.appears(timeout: 5), "the sheet shows Gmail's palette")
+        openColorSheet(vendors, in: app)
+        let swatch = element("labelColor.preset.#e7e7e7.#464646", in: app)
+        XCTAssertTrue(swatch.appears(timeout: 5), "the sheet shows Gmail's preset pairs")
+        // Gmail's menu: 30 preset pairs, "Add custom color", "Remove color".
+        XCTAssertEqual(presets(in: app).count, 30, "30 preset pairs")
+        XCTAssertTrue(element("labelColor.addCustom", in: app).exists, "Add custom color is there")
+        XCTAssertTrue(element("labelColor.remove", in: app).exists, "Remove color is there")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'labelColor.custom.'")).count, 0, "no custom grids in the menu")
         // The sheet hugs the palette: no empty half, Done close to its edge.
         let palette = element("labelColor.palette", in: app)
         let sheet = app.sheets.firstMatch
@@ -176,8 +192,11 @@ final class SidebarLabelMenuUITests: XCTestCase {
                        "the sheet \(sheet.frame) is as wide as the palette \(palette.frame) with its padding")
         XCTAssertLessThanOrEqual(done.frame.maxX, palette.frame.maxX + 16,
                                  "Done \(done.frame) is not far beyond the palette \(palette.frame)")
-        // Gmail's menu: the grid and "Remove color", nothing else.
-        XCTAssertTrue(element("labelColor.remove", in: app).exists, "Remove color is there")
+        // The swatches fit inside the sheet: the first and the last.
+        for i in [0, 29] {
+            let frame = presets(in: app).element(boundBy: i).frame
+            XCTAssertTrue(sheet.frame.contains(frame), "swatch \(i) \(frame) inside the sheet \(sheet.frame)")
+        }
         XCTAssertEqual(app.buttons.matching(NSPredicate(
             format: "identifier BEGINSWITH 'labelColor.mac.'")).count, 0, "no Mac-only swatches")
         XCTAssertFalse(element("labelColor.current.gmail", in: app).exists, "no Current line")
@@ -269,24 +288,84 @@ final class SidebarLabelMenuUITests: XCTestCase {
     }
 
     /// The demo's Work label has Gmail color #6E56CF, which is not one of
-    /// the 64 swatches: the grid is there and no swatch is checked.
-    func testColorSheetChecksNoSwatchForAnOffGridColor() {
+    /// the presets: the presets are there and none is checked.
+    func testColorSheetChecksNoPresetForAnOffGridColor() {
         let app = launch()
         let work = label("Label_work", in: app)
         XCTAssertTrue(work.appears(timeout: 10))
-        work.rightClick()
-        let color = menuItem("labelMenu.color", "Label color", in: app)
-        XCTAssertTrue(color.appears(timeout: 5))
-        color.hover()
-        let choose = menuItem("labelMenu.color.choose", "Choose color…", in: app)
-        XCTAssertTrue(choose.appears(timeout: 5))
-        choose.click()
+        openColorSheet(work, in: app)
         let remove = element("labelColor.remove", in: app)
         XCTAssertTrue(remove.appears(timeout: 5), "the sheet has Remove color")
-        let swatches = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'labelColor.gmail.'"))
-        XCTAssertGreaterThan(swatches.count, 0, "the grid is there")
+        let swatches = presets(in: app)
+        XCTAssertEqual(swatches.count, 30, "the presets are there")
         for i in 0..<swatches.count {
-            XCTAssertFalse(swatches.element(boundBy: i).isSelected, "no swatch is checked for an off-grid color")
+            XCTAssertFalse(swatches.element(boundBy: i).isSelected, "no preset is checked for an off-grid color")
         }
+    }
+
+    /// "Add custom color": the dialog replaces the menu with a preview and
+    /// both grids (64 values each), inside the sheet. Work's color is off
+    /// the API palette, so the choice starts at the default pair. Cancel
+    /// closes it; Apply closes it too (the demo refuses the Gmail write, so
+    /// the write itself is not covered here).
+    func testAddCustomColorDialogHasBothGridsAndFits() {
+        let app = launch()
+        let work = label("Label_work", in: app)
+        XCTAssertTrue(work.appears(timeout: 10))
+        openColorSheet(work, in: app)
+        let add = element("labelColor.addCustom", in: app)
+        XCTAssertTrue(add.appears(timeout: 5))
+        add.click()
+
+        let dialog = element("labelColor.custom", in: app)
+        XCTAssertTrue(dialog.appears(timeout: 5), "the custom dialog opens")
+        XCTAssertTrue(app.staticTexts["Add custom color"].exists, "with Gmail's title")
+        XCTAssertTrue(app.staticTexts["Preview label color - pick colors below."].exists, "and the preview line")
+        XCTAssertTrue(element("labelColor.custom.preview", in: app).exists, "the preview chip")
+        XCTAssertEqual(presets(in: app).count, 0, "the menu is gone")
+        let background = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'labelColor.custom.background.'"))
+        let text = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'labelColor.custom.text.'"))
+        XCTAssertEqual(background.count, 64, "the background grid")
+        XCTAssertEqual(text.count, 64, "the text grid")
+        let cancel = element("labelColor.custom.cancel", in: app)
+        let apply = element("labelColor.custom.apply", in: app)
+        XCTAssertTrue(cancel.exists && apply.exists, "Cancel and Apply")
+
+        // Everything fits inside the sheet; the grids sit side by side.
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.exists)
+        let bgGrid = element("labelColor.custom.background", in: app).frame
+        let textGrid = element("labelColor.custom.text", in: app).frame
+        for frame in [bgGrid, textGrid, cancel.frame, apply.frame,
+                      element("labelColor.custom.preview", in: app).frame,
+                      background.element(boundBy: 63).frame, text.element(boundBy: 63).frame] {
+            XCTAssertTrue(sheet.frame.contains(frame), "\(frame) inside the sheet \(sheet.frame)")
+        }
+        XCTAssertLessThan(bgGrid.maxX, textGrid.minX, "Background left of Text")
+        XCTAssertEqual(bgGrid.minY, textGrid.minY, accuracy: 2, "side by side")
+
+        // The default pair is checked, one swatch per grid; a click moves it.
+        let grey = element("labelColor.custom.background.#cccccc", in: app)
+        XCTAssertTrue(grey.isSelected, "default background checked")
+        XCTAssertTrue(element("labelColor.custom.text.#000000", in: app).isSelected, "default text checked")
+        XCTAssertEqual(background.matching(NSPredicate(format: "selected == true")).count, 1,
+                       "one background checked")
+        let red = element("labelColor.custom.background.#fb4c2f", in: app)
+        red.click()
+        XCTAssertTrue(UITestWait.until(5) { red.isSelected && !grey.isSelected },
+                      "the click selects the background and unchecks the old one")
+
+        cancel.click()
+        XCTAssertTrue(waitForAbsence(dialog), "Cancel closes the dialog")
+
+        openColorSheet(work, in: app)
+        XCTAssertTrue(add.appears(timeout: 5), "the sheet opens on the menu again")
+        add.click()
+        XCTAssertTrue(dialog.appears(timeout: 5))
+        XCTAssertTrue(grey.isSelected, "Cancel kept nothing: the choice starts over")
+        apply.click()
+        XCTAssertTrue(waitForAbsence(dialog), "Apply closes the dialog")
     }
 }

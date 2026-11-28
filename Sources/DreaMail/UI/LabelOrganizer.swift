@@ -108,7 +108,7 @@ private struct LabelOrganizerRow: View {
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showPalette, arrowEdge: .bottom) {
-                LabelColorPalette(label: label) { showPalette = false }
+                LabelColorChooser(label: label, title: nil) { showPalette = false }
             }
 
             Text(entry.displayName).font(.system(size: 13))
@@ -124,29 +124,214 @@ private struct LabelOrganizerRow: View {
     }
 }
 
-/// The label color popover: Gmail's own palette (synced) and "Remove color",
-/// as in Gmail's "Label color" menu. Also opened from the sidebar's label
-/// menu ("Label color").
+/// The label color chooser: Gmail's "Label color" menu, replaced by its
+/// "Add custom color" dialog once that is chosen. Shown by the sidebar's
+/// sheet (with a title and Done) and by the organizer's popover.
+struct LabelColorChooser: View {
+    let label: LabelRow
+    /// The sheet's heading; nil in the popover.
+    let title: String?
+    let onClose: () -> Void
+    @State private var addingCustom = false
+
+    var body: some View {
+        if addingCustom {
+            LabelCustomColorDialog(label: label, onClose: onClose)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                if let title {
+                    Text(verbatim: title).font(.headline)
+                        .lineLimit(1).truncationMode(.middle)
+                        .padding([.top, .horizontal], 12)
+                }
+                LabelColorPalette(label: label, onPick: onClose) { addingCustom = true }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("labelColor.palette")
+                if title != nil {
+                    HStack {
+                        Spacer()
+                        Button("Done", action: onClose)
+                            .keyboardShortcut(.cancelAction)
+                            .accessibilityIdentifier("labelColor.done")
+                    }
+                    .padding([.bottom, .horizontal], 12)
+                }
+            }
+            // As wide as the palette (244 pt, its own padding included).
+            .frame(width: 244)
+        }
+    }
+}
+
+/// Gmail's "Label color" menu: the 30 preset pairs (`GmailLabelColorMenu`),
+/// each a circle in the background color with an "a" in the text color,
+/// the current one checked; then "Add custom color" and "Remove color".
 struct LabelColorPalette: View {
     @Environment(MailStore.self) var store
     let label: LabelRow
     let onPick: () -> Void
+    let onAddCustom: () -> Void
 
-    private let gmailColumns = Array(repeating: GridItem(.fixed(22), spacing: 5),
-                                     count: GmailLabelPalette.columns)
+    private static let size: CGFloat = 28
+    private let columns = Array(repeating: GridItem(.fixed(LabelColorPalette.size), spacing: 8),
+                                count: GmailLabelColorMenu.columns)
 
     var body: some View {
         let saving = store.gmailLabelColorSaving.contains(label.id)
+        let checked = GmailLabelColorMenu.checked(label.drawnGmailColors)
         VStack(alignment: .leading, spacing: 10) {
-            LazyVGrid(columns: gmailColumns, spacing: 5) {
-                ForEach(GmailLabelPalette.swatches, id: \.self) { swatch in
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                ForEach(GmailLabelColorMenu.presets, id: \.self) { preset in
                     Button {
-                        store.setGmailLabelColor(label, to: swatch)
+                        store.setGmailLabelColor(label, to: preset)
                         onPick()
                     } label: {
-                        LabelDot(colors: swatch.colors, size: 20)
+                        LabelColorPresetSwatch(color: preset, checked: preset == checked, size: Self.size)
+                    }
+                    .buttonStyle(.plain)
+                    .help("\(preset.background) with \(preset.text) text")
+                    .accessibilityLabel("Background \(preset.background), text \(preset.text)")
+                    .accessibilityIdentifier("labelColor.preset.\(preset.background).\(preset.text)")
+                    .accessibilityAddTraits(preset == checked ? .isSelected : [])
+                }
+            }
+            .disabled(saving)
+            menuRow("Add custom color", systemImage: "plus", id: "labelColor.addCustom", action: onAddCustom)
+                .disabled(saving)
+            menuRow("Remove color", systemImage: "circle.slash", id: "labelColor.remove") {
+                store.setGmailLabelColor(label, to: nil)
+                onPick()
+            }
+            .disabled(saving || !label.hasGmailColor)
+            if saving {
+                Text("Saving to Gmail…").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+        // Fill the 244 pt, left-aligned.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .frame(width: 244)
+    }
+
+    /// A row that spans the sheet, as in a menu: the whole row is the button.
+    private func menuRow(_ title: String, systemImage: String, id: String,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+    }
+}
+
+/// One preset: a circle in the background color with a lowercase "a" in
+/// the text color (a check mark instead on the current one), so the text's
+/// lightness shows. A hairline keeps light fills visible on a light sheet.
+private struct LabelColorPresetSwatch: View {
+    let color: GmailLabelColor
+    let checked: Bool
+    let size: CGFloat
+
+    var body: some View {
+        let ink = LabelRGB(hexString: color.text).map(Color.init) ?? .primary
+        Circle()
+            .fill(LabelRGB(hexString: color.background).map(Color.init) ?? .clear)
+            .overlay { Circle().strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5) }
+            .overlay {
+                if checked {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                } else {
+                    Text(verbatim: "a").font(.system(size: 14, weight: .medium))
+                }
+            }
+            .foregroundStyle(ink)
+            .frame(width: size, height: size)
+            .contentShape(Circle())
+    }
+}
+
+/// Gmail's "Add custom color" dialog: a preview chip, then the background
+/// and the text grids side by side (the API palette's 64-value grid each:
+/// a grey row, a saturated row, six rows of tints). Apply writes the pair
+/// through the usual path (the family follows, DEC-071); Cancel changes
+/// nothing.
+struct LabelCustomColorDialog: View {
+    @Environment(MailStore.self) private var store
+    let label: LabelRow
+    let onClose: () -> Void
+    @State private var choice: GmailCustomLabelColor
+
+    private static let cell: CGFloat = 20
+    private static let spacing: CGFloat = 4
+    private static let gridWidth = CGFloat(GmailLabelPalette.columns) * cell
+        + CGFloat(GmailLabelPalette.columns - 1) * spacing
+
+    init(label: LabelRow, onClose: @escaping () -> Void) {
+        self.label = label
+        self.onClose = onClose
+        _choice = State(initialValue: GmailCustomLabelColor(current: label.drawnGmailColors))
+    }
+
+    var body: some View {
+        let saving = store.gmailLabelColorSaving.contains(label.id)
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Add custom color").font(.headline)
+            HStack(spacing: 10) {
+                LabelPill(name: LabelText.safe(label.name), colors: choice.color.colors,
+                          fontSize: 12, maxWidth: 160)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("labelColor.custom.preview")
+                Text("Preview label color - pick colors below.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize()
+            }
+            HStack(alignment: .top, spacing: 20) {
+                grid("Background color", part: "background", selected: choice.color.background) {
+                    choice.pick(background: $0)
+                }
+                grid("Text color", part: "text", selected: choice.color.text) {
+                    choice.pick(text: $0)
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") { finish(applied: false) }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("labelColor.custom.cancel")
+                Button("Apply") { finish(applied: true) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(saving)
+                    .accessibilityIdentifier("labelColor.custom.apply")
+            }
+        }
+        .padding(20)
+        // As large as its content: nothing is truncated.
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("labelColor.custom")
+    }
+
+    private func finish(applied: Bool) {
+        if applied { store.setGmailLabelColor(label, to: choice.color) }
+        onClose()
+    }
+
+    private func grid(_ title: String, part: String, selected: String,
+                      pick: @escaping (String) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(verbatim: title).font(.system(size: 12, weight: .medium))
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.cell), spacing: Self.spacing),
+                                     count: GmailLabelPalette.columns),
+                      spacing: Self.spacing) {
+                ForEach(GmailLabelPalette.swatches, id: \.self) { swatch in
+                    let on = selected == swatch.background
+                    Button { pick(swatch.background) } label: {
+                        LabelDot(colors: swatch.colors, size: Self.cell)
                             .overlay {
-                                if label.gmailBackgroundColor == swatch.background {
+                                if on {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 9, weight: .bold))
                                         .foregroundStyle(LabelRGB(hexString: swatch.text).map(Color.init) ?? .primary)
@@ -155,33 +340,14 @@ struct LabelColorPalette: View {
                     }
                     .buttonStyle(.plain)
                     .help(swatch.background)
-                    .accessibilityLabel("Color on Gmail \(swatch.background)")
-                    .accessibilityIdentifier("labelColor.gmail.\(swatch.background)")
-                    .accessibilityAddTraits(label.gmailBackgroundColor == swatch.background ? .isSelected : [])
+                    .accessibilityLabel("\(title) \(swatch.background)")
+                    .accessibilityIdentifier("labelColor.custom.\(part).\(swatch.background)")
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
-            .disabled(saving)
-            Button {
-                store.setGmailLabelColor(label, to: nil)
-                onPick()
-            } label: {
-                Label("Remove color", systemImage: "circle.slash")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                    // The row spans the sheet, as in a menu: the whole row is the button.
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(saving || !label.hasGmailColor)
-            .accessibilityIdentifier("labelColor.remove")
-            if saving {
-                Text("Saving to Gmail…").font(.system(size: 11)).foregroundStyle(.secondary)
-            }
+            .frame(width: Self.gridWidth)
         }
-        // Fill the 244 pt, left-aligned: without the long caption lines the
-        // grid alone is narrower and would sit centred.
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .frame(width: 244)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("labelColor.custom.\(part)")
     }
 }
