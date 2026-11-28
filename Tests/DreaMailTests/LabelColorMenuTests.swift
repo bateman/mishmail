@@ -116,18 +116,25 @@ final class LabelColorMenuTests: XCTestCase {
         XCTAssertEqual(d.color, GmailLabelColor(background: "#16a766", text: "#000000"))
     }
 
-    func testApplyGivesThePickedPair() {
+    func testPicksGiveTheChosenPair() {
         var c = GmailCustomLabelColor(current: .none)
         c.pick(background: "#4a86e8")
         c.pick(text: "#ffffff")
-        XCTAssertEqual(c.result(applied: true), GmailLabelColor(background: "#4a86e8", text: "#ffffff"))
+        XCTAssertEqual(c.color, GmailLabelColor(background: "#4a86e8", text: "#ffffff"))
     }
 
-    func testCancelGivesNothing() {
-        var c = GmailCustomLabelColor(current: LabelColors(background: "#fb4c2f", text: "#ffffff"))
-        XCTAssertNil(c.result(applied: false))
-        c.pick(background: "#4a86e8")
-        XCTAssertNil(c.result(applied: false))
+    /// A label on a preset outside the 64-value grids (#b6cff5/#0d3472)
+    /// opens the dialog on its own pair, unchanged, with no cell checked
+    /// (neither value is on the grids). Cancel writes nothing, so the
+    /// label keeps it.
+    func testAPresetOffTheGridsStartsUnchangedWithNoCellChecked() {
+        let preset = LabelColors(background: "#b6cff5", text: "#0d3472")
+        XCTAssertNotNil(GmailLabelColorMenu.checked(preset), "it is a menu preset")
+        let c = GmailCustomLabelColor(current: preset)
+        XCTAssertEqual(c.color, GmailLabelColor(background: "#b6cff5", text: "#0d3472"))
+        let grid = GmailLabelPalette.swatches.map(\.background)
+        XCTAssertFalse(grid.contains(c.color.background), "no background cell checked")
+        XCTAssertFalse(grid.contains(c.color.text), "no text cell checked")
     }
 
     func testAValueTheAPIRefusesChangesNothing() {

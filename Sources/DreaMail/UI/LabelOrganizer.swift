@@ -315,9 +315,7 @@ struct LabelCustomColorDialog: View {
     }
 
     private func finish(applied: Bool) {
-        if let color = choice.result(applied: applied) {
-            store.setGmailLabelColor(label, to: color)
-        }
+        if applied { store.setGmailLabelColor(label, to: choice.color) }
         onClose()
     }
 

@@ -49,8 +49,9 @@ enum GmailLabelPalette {
     /// Columns of the picker grid: one hue per column.
     static let columns = 8
 
-    /// What the organizer offers: the first 64 values (a grey row, then
-    /// seven rows of eight hues, the grid Gmail's own picker shows), each
+    /// The grids of the "Add custom color" dialog (background and text):
+    /// the first 64 values (a grey row, a saturated row, then six rows of
+    /// tints, the grid Gmail's own dialog shows), each
     /// with black or white text, whichever contrasts more. Both are in the
     /// set, and one of the two always reaches 4.5:1 (WCAG AA).
     static let swatches: [GmailLabelColor] = allowedHex.prefix(64).map { hex in
@@ -100,7 +101,7 @@ enum GmailLabelColorMenu {
 
 /// The "Add custom color" dialog's choice: a background and a text color
 /// from the grids, starting from the label's colors.
-struct GmailCustomLabelColor: Equatable {
+struct GmailCustomLabelColor {
     /// The choice when the label has no color (or one the API refuses):
     /// Gmail's light grey with black text.
     static let defaultColor = GmailLabelColor(background: "#cccccc", text: "#000000")!
@@ -124,9 +125,6 @@ struct GmailCustomLabelColor: Equatable {
     mutating func pick(text hex: String) {
         if let c = GmailLabelColor(background: color.background, text: hex) { color = c }
     }
-
-    /// What the dialog writes to Gmail: the choice on Apply, nothing on Cancel.
-    func result(applied: Bool) -> GmailLabelColor? { applied ? color : nil }
 }
 
 /// Gmail's label color presets (`colorPreset`, e.g.
